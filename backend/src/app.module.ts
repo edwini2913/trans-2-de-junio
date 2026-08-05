@@ -3,7 +3,10 @@ import {
   ConfigModule,
   ConfigService,
 } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import {
+  TypeOrmModule,
+  TypeOrmModuleOptions,
+} from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -36,7 +39,7 @@ import { ViajesModule } from './viajes/viajes.module';
 
       useFactory: (
         configService: ConfigService,
-      ) => {
+      ): TypeOrmModuleOptions => {
         const host =
           configService.get<string>(
             'DATABASE_HOST',
@@ -70,20 +73,33 @@ import { ViajesModule } from './viajes/viajes.module';
           !database
         ) {
           throw new Error(
-            'Faltan variables de conexión a PostgreSQL en el archivo .env',
+            'Faltan variables de conexión a PostgreSQL.',
           );
         }
 
         return {
-          type: 'postgres' as const,
+          type: 'postgres',
           host,
           port: Number(port),
           username,
           password,
           database,
+
           schema: 'sistema',
+
           autoLoadEntities: true,
-          synchronize: false,
+
+          /*
+           * En Railway la base de datos está vacía.
+           * Esta opción permitirá crear las tablas
+           * automáticamente dentro del esquema sistema.
+           *
+           * Cuando el sistema esté estable en producción,
+           * se recomienda usar migraciones y cambiarlo
+           * nuevamente a false.
+           */
+          synchronize: true,
+
           logging: ['error'],
         };
       },
