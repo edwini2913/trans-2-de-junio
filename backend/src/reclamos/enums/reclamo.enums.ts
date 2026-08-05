@@ -1,0 +1,42 @@
+export enum TipoReclamo {
+  RECLAMO = 'RECLAMO',
+  QUEJA = 'QUEJA',
+  SUGERENCIA = 'SUGERENCIA',
+  CONSULTA = 'CONSULTA',
+  OBJETO_PERDIDO = 'OBJETO_PERDIDO',
+  REEMBOLSO = 'REEMBOLSO',
+}
+
+export enum CategoriaReclamo {
+  RESERVA = 'RESERVA',
+  VENTA = 'VENTA',
+  TICKET = 'TICKET',
+  VIAJE = 'VIAJE',
+  CONDUCTOR = 'CONDUCTOR',
+  VEHICULO = 'VEHICULO',
+  EQUIPAJE = 'EQUIPAJE',
+  PAGO = 'PAGO',
+  OTRO = 'OTRO',
+}
+
+export enum PrioridadReclamo {
+  BAJA = 'BAJA',
+  NORMAL = 'NORMAL',
+  ALTA = 'ALTA',
+  URGENTE = 'URGENTE',
+}
+
+export enum EstadoReclamo {
+  PENDIENTE = 'PENDIENTE',
+  EN_REVISION = 'EN_REVISION',
+  RESPONDIDO = 'RESPONDIDO',
+  RESUELTO = 'RESUELTO',
+  CERRADO = 'CERRADO',
+  CANCELADO = 'CANCELADO',
+}
+
+export enum TipoAutorMensaje {
+  USUARIO = 'USUARIO',
+  ADMINISTRADOR = 'ADMINISTRADOR',
+  SISTEMA = 'SISTEMA',
+}
