@@ -98,7 +98,7 @@ import { ViajesModule } from './viajes/viajes.module';
            * se recomienda usar migraciones y cambiarlo
            * nuevamente a false.
            */
-          synchronize: true,
+          synchronize: false,
 
           logging: ['error'],
         };
