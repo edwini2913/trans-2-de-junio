@@ -4,8 +4,13 @@ import axios, {
 } from "axios";
 
 const API_URL =
-  import.meta.env.VITE_API_URL?.trim() ||
-  "http://localhost:3000";
+  import.meta.env.VITE_API_URL?.trim();
+
+if (!API_URL) {
+  throw new Error(
+    "Falta configurar VITE_API_URL en el frontend.",
+  );
+}
 
 const api = axios.create({
   baseURL: API_URL,
