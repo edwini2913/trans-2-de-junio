@@ -1,4 +1,8 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 export enum RolUsuario {
   ADMINISTRADOR = 'ADMINISTRADOR',
@@ -13,43 +17,79 @@ export class Usuario {
   id!: string;
 
   @Column({
-  name: 'codigo_usuario',
-  type: 'varchar',
-  length: 20,
-  unique: true,
-  nullable: true,
-})
-codigoUsuario!: string;
+    name: 'codigo_usuario',
+    type: 'varchar',
+    length: 20,
+    unique: true,
+    nullable: true,
+  })
+  codigoUsuario!: string | null;
 
-  @Column({ length: 100 })
+  @Column({
+    type: 'varchar',
+    length: 100,
+  })
   nombre!: string;
 
   @Column({
-  name: 'codigo_registro',
-  length: 20,
-  unique: true,
-  nullable: true,
-})
-codigoRegistro!: string;
+    name: 'codigo_registro',
+    type: 'varchar',
+    length: 20,
+    unique: true,
+    nullable: true,
+  })
+  codigoRegistro!: string | null;
 
-  @Column({ length: 100 })
+  @Column({
+    type: 'varchar',
+    length: 100,
+  })
   apellido!: string;
 
-  @Column({ length: 20, unique: true })
+  @Column({
+    type: 'varchar',
+    length: 20,
+    unique: true,
+  })
   ci!: string;
 
-  @Column({ length: 20, nullable: true })
-  telefono!: string;
+  @Column({
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
+  telefono!: string | null;
 
-  @Column({ length: 150, unique: true })
+  @Column({
+    type: 'varchar',
+    length: 150,
+    unique: true,
+  })
   email!: string;
 
   @Column({
-  type: 'varchar',
-  length: 255,
-  select: false,
+    type: 'varchar',
+    length: 255,
+    select: false,
   })
   password!: string;
+
+  @Column({
+    name: 'token_recuperacion_password',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+    select: false,
+  })
+  tokenRecuperacionPassword!: string | null;
+
+  @Column({
+    name: 'token_recuperacion_expira',
+    type: 'timestamp',
+    nullable: true,
+    select: false,
+  })
+  tokenRecuperacionExpira!: Date | null;
 
   @Column({
     type: 'enum',
@@ -58,7 +98,10 @@ codigoRegistro!: string;
   })
   rol!: RolUsuario;
 
-  @Column({ default: true })
+  @Column({
+    type: 'boolean',
+    default: true,
+  })
   estado!: boolean;
 
   @Column({
@@ -73,5 +116,5 @@ codigoRegistro!: string;
     type: 'timestamp',
     nullable: true,
   })
-  fechaActualizacion!: Date;
+  fechaActualizacion!: Date | null;
 }

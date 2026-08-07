@@ -1,20 +1,40 @@
-import { Module } from '@nestjs/common';
+import {
+  Module,
+} from '@nestjs/common';
 
 import {
   ConfigModule,
   ConfigService,
 } from '@nestjs/config';
 
-import { JwtModule } from '@nestjs/jwt';
+import {
+  JwtModule,
+} from '@nestjs/jwt';
 
-import { AuditoriaModule } from '../auditoria/auditoria.module';
-import { UsersModule } from '../users/users.module';
+import {
+  AuditoriaModule,
+} from '../auditoria/auditoria.module';
 
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
+import {
+  UsersModule,
+} from '../users/users.module';
+
+import {
+  AuthController,
+} from './auth.controller';
+
+import {
+  AuthService,
+} from './auth.service';
+
+import {
+  CorreoService,
+} from './correo.service';
 
 @Module({
   imports: [
+    ConfigModule,
+
     UsersModule,
 
     AuditoriaModule,
@@ -29,17 +49,30 @@ import { AuthService } from './auth.service';
       ],
 
       useFactory: (
-        config: ConfigService,
-      ) => ({
-        secret:
-          config.get<string>(
+        configService:
+          ConfigService,
+      ) => {
+        const jwtSecret =
+          configService.get<string>(
             'JWT_SECRET',
-          ),
+          );
 
-        signOptions: {
-          expiresIn: '1d',
-        },
-      }),
+        if (!jwtSecret) {
+          throw new Error(
+            'La variable JWT_SECRET no está configurada.',
+          );
+        }
+
+        return {
+          secret:
+            jwtSecret,
+
+          signOptions: {
+            expiresIn:
+              '1d',
+          },
+        };
+      },
     }),
   ],
 
@@ -49,10 +82,12 @@ import { AuthService } from './auth.service';
 
   providers: [
     AuthService,
+    CorreoService,
   ],
 
   exports: [
     AuthService,
+    CorreoService,
   ],
 })
 export class AuthModule {}

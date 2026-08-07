@@ -4,10 +4,20 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-import { JwtService } from '@nestjs/jwt';
+import {
+  JwtService,
+} from '@nestjs/jwt';
+
+import {
+  createHash,
+  randomBytes,
+} from 'crypto';
+
 import * as bcrypt from 'bcrypt';
 
-import { AuditoriaService } from '../auditoria/auditoria.service';
+import {
+  AuditoriaService,
+} from '../auditoria/auditoria.service';
 
 import {
   ResultadoAuditoria,
@@ -19,19 +29,47 @@ import {
   Usuario,
 } from '../users/entities/usuario.entity';
 
-import { UsersService } from '../users/users.service';
+import {
+  UsersService,
+} from '../users/users.service';
 
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
+import {
+  CorreoService,
+} from './correo.service';
+
+import {
+  LoginDto,
+} from './dto/login.dto';
+
+import {
+  RegisterDto,
+} from './dto/register.dto';
+
+import {
+  RestablecerPasswordDto,
+} from './dto/restablecer-password.dto';
+
+import {
+  SolicitarRecuperacionDto,
+} from './dto/solicitar-recuperacion.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly minutosExpiracionRecuperacion =
+    15;
+
   constructor(
-    private readonly usersService: UsersService,
+    private readonly usersService:
+      UsersService,
 
-    private readonly jwtService: JwtService,
+    private readonly jwtService:
+      JwtService,
 
-    private readonly auditoriaService: AuditoriaService,
+    private readonly auditoriaService:
+      AuditoriaService,
+
+    private readonly correoService:
+      CorreoService,
   ) {}
 
   async register(
@@ -54,13 +92,16 @@ export class AuthService {
         await this.usersService.crearUsuario({
           ...registerDto,
 
-          password: passwordHash,
+          password:
+            passwordHash,
 
-          rol: RolUsuario.PASAJERO,
+          rol:
+            RolUsuario.PASAJERO,
         });
 
       await this.registrarAuditoriaSegura({
-        usuarioId: usuario.id,
+        usuarioId:
+          usuario.id,
 
         usuarioNombre:
           this.obtenerNombreCompleto(
@@ -76,20 +117,24 @@ export class AuthService {
         accion:
           TipoAccionAuditoria.CREAR,
 
-        modulo: 'AUTENTICACION',
+        modulo:
+          'AUTENTICACION',
 
         descripcion:
           'Registro exitoso de un nuevo pasajero.',
 
-        entidad: 'Usuario',
+        entidad:
+          'Usuario',
 
-        entidadId: usuario.id,
+        entidadId:
+          usuario.id,
 
         resultado:
           ResultadoAuditoria.EXITOSO,
 
         datosNuevos: {
-          id: usuario.id,
+          id:
+            usuario.id,
 
           nombre:
             usuario.nombre,
@@ -117,12 +162,14 @@ export class AuthService {
         accion:
           TipoAccionAuditoria.CREAR,
 
-        modulo: 'AUTENTICACION',
+        modulo:
+          'AUTENTICACION',
 
         descripcion:
           'Falló el registro de un nuevo pasajero.',
 
-        entidad: 'Usuario',
+        entidad:
+          'Usuario',
 
         resultado:
           ResultadoAuditoria.FALLIDO,
@@ -280,6 +327,155 @@ export class AuthService {
     );
   }
 
+  async solicitarRecuperacionPassword(
+    dto: SolicitarRecuperacionDto,
+  ): Promise<{
+    mensaje: string;
+  }> {
+    const respuestaSegura = {
+      mensaje:
+        'Si el correo está registrado, recibirás un enlace para restablecer tu contraseña.',
+    };
+
+    const emailNormalizado =
+      dto.email
+        .trim()
+        .toLowerCase();
+
+    const usuario =
+      await this.usersService.buscarPorEmail(
+        emailNormalizado,
+      );
+
+    if (
+      !usuario ||
+      !usuario.estado
+    ) {
+      return respuestaSegura;
+    }
+
+    const tokenPlano =
+      randomBytes(
+        32,
+      ).toString(
+        'hex',
+      );
+
+    const tokenHash =
+      this.generarHashToken(
+        tokenPlano,
+      );
+
+    const fechaExpiracion =
+      new Date(
+        Date.now() +
+          this.minutosExpiracionRecuperacion *
+            60 *
+            1000,
+      );
+
+    await this.usersService.guardarTokenRecuperacion(
+      usuario.id,
+      tokenHash,
+      fechaExpiracion,
+    );
+
+    try {
+      await this.correoService.enviarRecuperacionPassword({
+        destinatario:
+          usuario.email,
+
+        nombreUsuario:
+          this.obtenerNombreCompleto(
+            usuario,
+          ) ||
+          usuario.nombre ||
+          'Usuario',
+
+        token:
+          tokenPlano,
+      });
+    } catch (error: unknown) {
+      await this.usersService.limpiarTokenRecuperacion(
+        usuario.id,
+      );
+
+      throw error;
+    }
+
+    return respuestaSegura;
+  }
+
+  async restablecerPassword(
+    dto: RestablecerPasswordDto,
+  ): Promise<{
+    mensaje: string;
+  }> {
+    const tokenPlano =
+      dto.token.trim();
+
+    const nuevaPassword =
+      dto.nuevaPassword;
+
+    const confirmarPassword =
+      dto.confirmarPassword;
+
+    if (!tokenPlano) {
+      throw new BadRequestException(
+        'El token de recuperación es obligatorio.',
+      );
+    }
+
+    if (
+      nuevaPassword !==
+      confirmarPassword
+    ) {
+      throw new BadRequestException(
+        'Las contraseñas no coinciden.',
+      );
+    }
+
+    if (
+      nuevaPassword.length < 8
+    ) {
+      throw new BadRequestException(
+        'La nueva contraseña debe tener al menos 8 caracteres.',
+      );
+    }
+
+    const tokenHash =
+      this.generarHashToken(
+        tokenPlano,
+      );
+
+    const usuario =
+      await this.usersService.buscarPorTokenRecuperacion(
+        tokenHash,
+      );
+
+    if (!usuario) {
+      throw new BadRequestException(
+        'El enlace de recuperación no es válido o ya expiró.',
+      );
+    }
+
+    const passwordHash =
+      await bcrypt.hash(
+        nuevaPassword,
+        10,
+      );
+
+    await this.usersService.actualizarPasswordYLimpiarToken(
+      usuario.id,
+      passwordHash,
+    );
+
+    return {
+      mensaje:
+        'Contraseña actualizada correctamente. Ya puedes iniciar sesión.',
+    };
+  }
+
   private generarToken(
     usuario: Usuario,
   ) {
@@ -325,6 +521,20 @@ export class AuthService {
     };
   }
 
+  private generarHashToken(
+    token: string,
+  ): string {
+    return createHash(
+      'sha256',
+    )
+      .update(
+        token,
+      )
+      .digest(
+        'hex',
+      );
+  }
+
   private async registrarLoginFallido(
     email: string,
     mensajeError: string,
@@ -368,8 +578,8 @@ export class AuthService {
     } catch (error: unknown) {
       /*
        * Una falla en la auditoría no debe
-       * impedir el registro o el inicio
-       * de sesión del usuario.
+       * impedir el registro, el inicio de
+       * sesión o la recuperación.
        */
       console.error(
         'No se pudo registrar la auditoría de autenticación:',
@@ -402,7 +612,8 @@ export class AuthService {
     }
 
     if (
-      typeof error === 'object' &&
+      typeof error ===
+        'object' &&
       error !== null &&
       'message' in error
     ) {

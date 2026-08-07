@@ -90,7 +90,9 @@ export class UsersService {
     email: string,
   ): Promise<Usuario | null> {
     const emailNormalizado =
-      email.trim().toLowerCase();
+      email
+        .trim()
+        .toLowerCase();
 
     if (!emailNormalizado) {
       return null;
@@ -114,7 +116,9 @@ export class UsersService {
     email: string,
   ): Promise<Usuario | null> {
     const emailNormalizado =
-      email.trim().toLowerCase();
+      email
+        .trim()
+        .toLowerCase();
 
     if (!emailNormalizado) {
       return null;
@@ -140,25 +144,152 @@ export class UsersService {
   async buscarPorId(
     id: string,
   ): Promise<Usuario | null> {
-    return this.usuarioRepository.findOne(
-      {
-        where: {
-          id,
-        },
+    return this.usuarioRepository.findOne({
+      where: {
+        id,
       },
-    );
+    });
   }
 
   async obtenerTodos():
-    Promise<Usuario[]> {
-    return this.usuarioRepository.find(
-      {
-        order: {
-          fechaRegistro:
-            'DESC',
-        },
+  Promise<Usuario[]> {
+    return this.usuarioRepository.find({
+      order: {
+        fechaRegistro:
+          'DESC',
       },
-    );
+    });
+  }
+
+  async guardarTokenRecuperacion(
+    usuarioId: string,
+    tokenHash: string,
+    fechaExpiracion: Date,
+  ): Promise<void> {
+    const resultado =
+      await this.usuarioRepository.update(
+        {
+          id:
+            usuarioId,
+        },
+        {
+          tokenRecuperacionPassword:
+            tokenHash,
+
+          tokenRecuperacionExpira:
+            fechaExpiracion,
+
+          fechaActualizacion:
+            new Date(),
+        },
+      );
+
+    if (!resultado.affected) {
+      throw new NotFoundException(
+        'Usuario no encontrado.',
+      );
+    }
+  }
+
+  async buscarPorTokenRecuperacion(
+    tokenHash: string,
+  ): Promise<Usuario | null> {
+    if (!tokenHash.trim()) {
+      return null;
+    }
+
+    return this.usuarioRepository
+      .createQueryBuilder(
+        'usuario',
+      )
+      .addSelect([
+        'usuario.tokenRecuperacionPassword',
+        'usuario.tokenRecuperacionExpira',
+      ])
+      .where(
+        'usuario.tokenRecuperacionPassword = :tokenHash',
+        {
+          tokenHash,
+        },
+      )
+      .andWhere(
+        'usuario.tokenRecuperacionExpira IS NOT NULL',
+      )
+      .andWhere(
+        'usuario.tokenRecuperacionExpira > :fechaActual',
+        {
+          fechaActual:
+            new Date(),
+        },
+      )
+      .andWhere(
+        'usuario.estado = :estado',
+        {
+          estado:
+            true,
+        },
+      )
+      .getOne();
+  }
+
+  async actualizarPasswordYLimpiarToken(
+    usuarioId: string,
+    passwordHash: string,
+  ): Promise<void> {
+    const resultado =
+      await this.usuarioRepository.update(
+        {
+          id:
+            usuarioId,
+        },
+        {
+          password:
+            passwordHash,
+
+          tokenRecuperacionPassword:
+            null,
+
+          tokenRecuperacionExpira:
+            null,
+
+          fechaActualizacion:
+            new Date(),
+        },
+      );
+
+    if (!resultado.affected) {
+      throw new NotFoundException(
+        'Usuario no encontrado.',
+      );
+    }
+  }
+
+  async limpiarTokenRecuperacion(
+    usuarioId: string,
+  ): Promise<void> {
+    const resultado =
+      await this.usuarioRepository.update(
+        {
+          id:
+            usuarioId,
+        },
+        {
+          tokenRecuperacionPassword:
+            null,
+
+          tokenRecuperacionExpira:
+            null,
+
+          fechaActualizacion:
+            new Date(),
+        },
+      );
+
+    if (!resultado.affected) {
+      throw new NotFoundException(
+        'Usuario no encontrado.',
+      );
+    }
   }
 
   async eliminarUsuario(
@@ -167,13 +298,11 @@ export class UsersService {
     mensaje: string;
   }> {
     const usuario =
-      await this.usuarioRepository.findOne(
-        {
-          where: {
-            id,
-          },
+      await this.usuarioRepository.findOne({
+        where: {
+          id,
         },
-      );
+      });
 
     if (!usuario) {
       throw new NotFoundException(

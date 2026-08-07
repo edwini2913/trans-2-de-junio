@@ -16,9 +16,7 @@ import PageLoader from "./components/loaders/PageLoader";
 import EstadoConexion from "./components/pwa/EstadoConexion";
 import InstalarPWA from "./components/pwa/InstalarPWA";
 
-/*
- * PÁGINAS PÚBLICAS
- */
+/* PÁGINAS PÚBLICAS */
 
 const Home = lazy(
   () => import("./pages/Home"),
@@ -32,53 +30,47 @@ const Register = lazy(
   () => import("./pages/auth/Register"),
 );
 
-/*
- * PÁGINAS DEL PASAJERO
- */
+const RecuperarPassword = lazy(
+  () => import("./pages/auth/RecuperarPassword"),
+);
+
+const RestablecerPassword = lazy(
+  () => import("./pages/auth/RestablecerPassword"),
+);
+
+/* PÁGINAS DEL PASAJERO */
 
 const DashboardPasajero = lazy(
   () => import("./pages/pasajero/Dashboard"),
 );
 
 const BuscarViajes = lazy(
-  () =>
-    import("./pages/pasajero/BuscarViajes"),
+  () => import("./pages/pasajero/BuscarViajes"),
 );
 
 const ComprarPasaje = lazy(
-  () =>
-    import("./pages/pasajero/ComprarPasaje"),
+  () => import("./pages/pasajero/ComprarPasaje"),
 );
 
 const ComprarReservar = lazy(
-  () =>
-    import(
-      "./pages/pasajero/ComprarReservar"
-    ),
+  () => import("./pages/pasajero/ComprarReservar"),
 );
 
 const MisReservas = lazy(
-  () =>
-    import("./pages/pasajero/MisReservas"),
+  () => import("./pages/pasajero/MisReservas"),
 );
 
 const MisReclamos = lazy(
-  () =>
-    import("./pages/usuario/MisReclamos"),
+  () => import("./pages/usuario/MisReclamos"),
 );
 
-/*
- * ESCÁNER DE TICKETS
- */
+/* ESCÁNER DE TICKETS */
 
 const EscanearTicket = lazy(
-  () =>
-    import("./pages/chofer/EscanearTicket"),
+  () => import("./pages/chofer/EscanearTicket"),
 );
 
-/*
- * PANEL ADMINISTRATIVO
- */
+/* PANEL ADMINISTRATIVO */
 
 const AdminLayout = lazy(
   () => import("./layouts/AdminLayout"),
@@ -121,13 +113,11 @@ const ViajesRutas = lazy(
 );
 
 const RutasPage = lazy(
-  () =>
-    import("./pages/admin/rutas/RutasPage"),
+  () => import("./pages/admin/rutas/RutasPage"),
 );
 
 const Configuracion = lazy(
-  () =>
-    import("./pages/admin/Configuracion"),
+  () => import("./pages/admin/Configuracion"),
 );
 
 interface RutaConProteccionProps {
@@ -167,6 +157,16 @@ function RutasAplicacion() {
         <Route
           path="/register"
           element={<Register />}
+        />
+
+        <Route
+          path="/recuperar-password"
+          element={<RecuperarPassword />}
+        />
+
+        <Route
+          path="/restablecer-password"
+          element={<RestablecerPassword />}
         />
 
         {/* RUTAS DEL PASAJERO */}
@@ -419,7 +419,6 @@ function App() {
   return (
     <BrowserRouter>
       <RutasAplicacion />
-
       <EstadoConexion />
       <InstalarPWA />
     </BrowserRouter>
