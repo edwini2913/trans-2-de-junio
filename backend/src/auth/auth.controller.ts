@@ -51,6 +51,10 @@ export class AuthController {
     );
   }
 
+  /*
+   * Recibe el correo y envía el enlace
+   * de recuperación si la cuenta existe.
+   */
   @Post('recuperar-password')
   recuperarPassword(
     @Body()
@@ -61,6 +65,9 @@ export class AuthController {
     );
   }
 
+  /*
+   * Recibe el token y la nueva contraseña.
+   */
   @Post('restablecer-password')
   restablecerPassword(
     @Body()

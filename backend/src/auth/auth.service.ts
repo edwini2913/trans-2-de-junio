@@ -77,7 +77,7 @@ export class AuthService {
   ) {
     if (!registerDto.password) {
       throw new BadRequestException(
-        'La contraseña es obligatoria',
+        'La contraseña es obligatoria.',
       );
     }
 
@@ -91,6 +91,11 @@ export class AuthService {
       const usuario =
         await this.usersService.crearUsuario({
           ...registerDto,
+
+          email:
+            registerDto.email
+              .trim()
+              .toLowerCase(),
 
           password:
             passwordHash,
@@ -156,8 +161,7 @@ export class AuthService {
     } catch (error: unknown) {
       await this.registrarAuditoriaSegura({
         usuarioEmail:
-          registerDto.email ??
-          null,
+          registerDto.email ?? null,
 
         accion:
           TipoAccionAuditoria.CREAR,
@@ -176,8 +180,7 @@ export class AuthService {
 
         informacionAdicional: {
           email:
-            registerDto.email ??
-            null,
+            registerDto.email ?? null,
         },
 
         mensajeError:
@@ -193,15 +196,15 @@ export class AuthService {
   async login(
     loginDto: LoginDto,
   ) {
-    if (!loginDto.email) {
+    if (!loginDto.email?.trim()) {
       throw new BadRequestException(
-        'El correo es obligatorio',
+        'El correo es obligatorio.',
       );
     }
 
     if (!loginDto.password) {
       throw new BadRequestException(
-        'La contraseña es obligatoria',
+        'La contraseña es obligatoria.',
       );
     }
 
@@ -225,7 +228,18 @@ export class AuthService {
       );
 
       throw new UnauthorizedException(
-        'Correo o contraseña incorrectos',
+        'Correo o contraseña incorrectos.',
+      );
+    }
+
+    if (!usuario.estado) {
+      await this.registrarLoginFallido(
+        emailNormalizado,
+        'La cuenta del usuario está inactiva.',
+      );
+
+      throw new UnauthorizedException(
+        'La cuenta se encuentra inactiva.',
       );
     }
 
@@ -279,7 +293,7 @@ export class AuthService {
       });
 
       throw new UnauthorizedException(
-        'Correo o contraseña incorrectos',
+        'Correo o contraseña incorrectos.',
       );
     }
 
@@ -347,6 +361,11 @@ export class AuthService {
         emailNormalizado,
       );
 
+    /*
+     * No indicamos si el correo existe.
+     * Esto evita que otra persona pueda
+     * descubrir usuarios registrados.
+     */
     if (
       !usuario ||
       !usuario.estado
@@ -354,6 +373,12 @@ export class AuthService {
       return respuestaSegura;
     }
 
+    /*
+     * Generamos un token aleatorio seguro.
+     * Al usuario se le envía el token original,
+     * pero en PostgreSQL solamente guardamos
+     * su hash.
+     */
     const tokenPlano =
       randomBytes(
         32,
@@ -396,6 +421,11 @@ export class AuthService {
           tokenPlano,
       });
     } catch (error: unknown) {
+      /*
+       * Si el correo no puede enviarse,
+       * eliminamos el token para evitar
+       * dejar una recuperación incompleta.
+       */
       await this.usersService.limpiarTokenRecuperacion(
         usuario.id,
       );
@@ -455,7 +485,7 @@ export class AuthService {
 
     if (!usuario) {
       throw new BadRequestException(
-        'El enlace de recuperación no es válido o ya expiró.',
+        'El enlace de recuperación no es válido, ya fue utilizado o expiró.',
       );
     }
 
@@ -465,10 +495,49 @@ export class AuthService {
         10,
       );
 
+    /*
+     * Actualiza la contraseña y elimina
+     * inmediatamente el token. Por eso
+     * el enlace solamente funciona una vez.
+     */
     await this.usersService.actualizarPasswordYLimpiarToken(
       usuario.id,
       passwordHash,
     );
+
+    await this.registrarAuditoriaSegura({
+      usuarioId:
+        usuario.id,
+
+      usuarioNombre:
+        this.obtenerNombreCompleto(
+          usuario,
+        ),
+
+      usuarioEmail:
+        usuario.email,
+
+      usuarioRol:
+        usuario.rol,
+
+      accion:
+        TipoAccionAuditoria.ACTUALIZAR,
+
+      modulo:
+        'AUTENTICACION',
+
+      descripcion:
+        'El usuario restableció correctamente su contraseña.',
+
+      entidad:
+        'Usuario',
+
+      entidadId:
+        usuario.id,
+
+      resultado:
+        ResultadoAuditoria.EXITOSO,
+    });
 
     return {
       mensaje:
@@ -617,11 +686,12 @@ export class AuthService {
       error !== null &&
       'message' in error
     ) {
-      const mensaje = (
-        error as {
-          message?: unknown;
-        }
-      ).message;
+      const mensaje =
+        (
+          error as {
+            message?: unknown;
+          }
+        ).message;
 
       if (
         typeof mensaje ===

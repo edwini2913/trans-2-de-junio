@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -10,6 +11,7 @@ import {
 
 import {
   EntityManager,
+  QueryFailedError,
   Repository,
 } from 'typeorm';
 
@@ -24,9 +26,7 @@ type ResultadoCodigoUsuario = {
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(
-      Usuario,
-    )
+    @InjectRepository(Usuario)
     private readonly usuarioRepository:
       Repository<Usuario>,
   ) {}
@@ -34,56 +34,155 @@ export class UsersService {
   async crearUsuario(
     datos: Partial<Usuario>,
   ): Promise<Usuario> {
-    return this.usuarioRepository.manager.transaction(
-      async (
-        manager: EntityManager,
-      ) => {
-        const resultado =
-          (await manager.query(`
-            SELECT
-              'E-' || LPAD(
-                nextval(
-                  'sistema.usuario_codigo_seq'
-                )::TEXT,
-                3,
-                '0'
-              ) AS codigo
-          `)) as ResultadoCodigoUsuario[];
+    const emailNormalizado =
+      datos.email
+        ?.trim()
+        .toLowerCase();
 
-        const codigoUsuario =
-          resultado[0]?.codigo;
+    if (!emailNormalizado) {
+      throw new InternalServerErrorException(
+        'El correo electrónico es obligatorio.',
+      );
+    }
 
-        if (!codigoUsuario) {
-          throw new InternalServerErrorException(
-            'No se pudo generar el código del usuario.',
+    try {
+      return await this.usuarioRepository.manager.transaction(
+        async (
+          manager: EntityManager,
+        ) => {
+          const resultado =
+            (await manager.query(`
+              SELECT
+                'E-' || LPAD(
+                  nextval(
+                    'sistema.usuario_codigo_seq'
+                  )::TEXT,
+                  3,
+                  '0'
+                ) AS codigo
+            `)) as ResultadoCodigoUsuario[];
+
+          const codigoUsuario =
+            resultado[0]?.codigo;
+
+          if (!codigoUsuario) {
+            throw new InternalServerErrorException(
+              'No se pudo generar el código del usuario.',
+            );
+          }
+
+          const usuario =
+            manager.create(
+              Usuario,
+              {
+                ...datos,
+
+                email:
+                  emailNormalizado,
+
+                codigoUsuario,
+              },
+            );
+
+          return await manager.save(
+            Usuario,
+            usuario,
+          );
+        },
+      );
+    } catch (error: unknown) {
+      if (
+        error instanceof QueryFailedError
+      ) {
+        const errorPostgres =
+          error.driverError as {
+            code?: string;
+            constraint?: string;
+            detail?: string;
+            message?: string;
+          };
+
+        /*
+         * PostgreSQL:
+         * 23505 = dato duplicado.
+         */
+        if (
+          errorPostgres.code ===
+          '23505'
+        ) {
+          const detalle =
+            (
+              errorPostgres.detail ||
+              errorPostgres.message ||
+              ''
+            ).toLowerCase();
+
+          if (
+            detalle.includes(
+              'email',
+            )
+          ) {
+            throw new ConflictException(
+              'El correo electrónico ya está registrado.',
+            );
+          }
+
+          if (
+            detalle.includes(
+              'ci',
+            )
+          ) {
+            throw new ConflictException(
+              'El carnet de identidad ya está registrado.',
+            );
+          }
+
+          if (
+            detalle.includes(
+              'codigo',
+            )
+          ) {
+            throw new ConflictException(
+              'No se pudo generar un código de usuario único. Intente nuevamente.',
+            );
+          }
+
+          throw new ConflictException(
+            'Ya existe un usuario con alguno de los datos ingresados.',
           );
         }
 
-        const emailNormalizado =
-          datos.email
-            ?.trim()
-            .toLowerCase();
-
-        const usuario =
-          manager.create(
-            Usuario,
-            {
-              ...datos,
-
-              email:
-                emailNormalizado ??
-                datos.email,
-
-              codigoUsuario,
-            },
+        /*
+         * PostgreSQL:
+         * 42P01 = tabla o secuencia inexistente.
+         */
+        if (
+          errorPostgres.code ===
+          '42P01'
+        ) {
+          console.error(
+            'No existe la secuencia sistema.usuario_codigo_seq.',
+            errorPostgres,
           );
 
-        return manager.save(
-          Usuario,
-          usuario,
+          throw new InternalServerErrorException(
+            'No se pudo generar el código del usuario. La secuencia de usuarios no está configurada.',
+          );
+        }
+
+        console.error(
+          'Error PostgreSQL al crear usuario:',
+          errorPostgres,
         );
-      },
-    );
+      } else {
+        console.error(
+          'Error al crear usuario:',
+          error,
+        );
+      }
+
+      throw error;
+    }
   }
 
   async buscarPorEmail(
@@ -161,11 +260,24 @@ export class UsersService {
     });
   }
 
+  /*
+   * Guarda el hash del token y la fecha
+   * de expiración en el usuario.
+   */
   async guardarTokenRecuperacion(
     usuarioId: string,
     tokenHash: string,
     fechaExpiracion: Date,
   ): Promise<void> {
+    if (
+      !usuarioId.trim() ||
+      !tokenHash.trim()
+    ) {
+      throw new InternalServerErrorException(
+        'Los datos del token de recuperación no son válidos.',
+      );
+    }
+
     const resultado =
       await this.usuarioRepository.update(
         {
@@ -191,10 +303,19 @@ export class UsersService {
     }
   }
 
+  /*
+   * Busca solamente tokens que:
+   * - Coincidan con el hash guardado.
+   * - No hayan expirado.
+   * - Pertenezcan a un usuario activo.
+   */
   async buscarPorTokenRecuperacion(
     tokenHash: string,
   ): Promise<Usuario | null> {
-    if (!tokenHash.trim()) {
+    const tokenNormalizado =
+      tokenHash.trim();
+
+    if (!tokenNormalizado) {
       return null;
     }
 
@@ -209,7 +330,8 @@ export class UsersService {
       .where(
         'usuario.tokenRecuperacionPassword = :tokenHash',
         {
-          tokenHash,
+          tokenHash:
+            tokenNormalizado,
         },
       )
       .andWhere(
@@ -232,10 +354,22 @@ export class UsersService {
       .getOne();
   }
 
+  /*
+   * Cambia la contraseña y elimina el
+   * token dentro de una sola consulta.
+   * Después de esto, el enlace no puede
+   * utilizarse nuevamente.
+   */
   async actualizarPasswordYLimpiarToken(
     usuarioId: string,
     passwordHash: string,
   ): Promise<void> {
+    if (!passwordHash.trim()) {
+      throw new InternalServerErrorException(
+        'La contraseña cifrada no es válida.',
+      );
+    }
+
     const resultado =
       await this.usuarioRepository.update(
         {
@@ -264,6 +398,10 @@ export class UsersService {
     }
   }
 
+  /*
+   * Elimina un token cuando el correo
+   * no pudo enviarse.
+   */
   async limpiarTokenRecuperacion(
     usuarioId: string,
   ): Promise<void> {

@@ -1,12 +1,6 @@
 import { Module } from '@nestjs/common';
-import {
-  ConfigModule,
-  ConfigService,
-} from '@nestjs/config';
-import {
-  TypeOrmModule,
-  TypeOrmModuleOptions,
-} from '@nestjs/typeorm';
+import {ConfigModule,ConfigService,} from '@nestjs/config';
+import {TypeOrmModule,TypeOrmModuleOptions,} from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -32,7 +26,7 @@ import { ViajesModule } from './viajes/viajes.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-
+//configuración de la conexión a PostgreSQL usando TypeORM//
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

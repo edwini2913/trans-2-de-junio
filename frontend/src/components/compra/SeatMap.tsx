@@ -234,9 +234,9 @@ function MapaNoah({
   };
 
   return (
-    <div className="mx-auto min-w-[390px] max-w-[580px] px-1">
-      <div className="relative overflow-hidden rounded-[95px_95px_38px_38px] border-[5px] border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-4 shadow-[0_25px_65px_rgba(15,23,42,0.18)]">
-        <div className="rounded-[68px_68px_24px_24px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-6 pb-6 pt-8 shadow-inner">
+    <div className="mx-auto min-w-[288px] max-w-[580px] px-1">
+      <div className="relative overflow-hidden rounded-[58px_58px_28px_28px] border-[4px] border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-2 shadow-[0_25px_65px_rgba(15,23,42,0.18)] sm:rounded-[95px_95px_38px_38px] sm:border-[5px] sm:p-4">
+        <div className="rounded-[44px_44px_20px_20px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-3 pb-5 pt-6 shadow-inner sm:rounded-[68px_68px_24px_24px] sm:px-6 sm:pb-6 sm:pt-8">
           <div className="mb-6 flex items-center justify-center gap-3 text-emerald-800">
             <CarFront size={29} />
 
@@ -245,7 +245,7 @@ function MapaNoah({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 items-end gap-8">
+          <div className="grid grid-cols-2 items-end gap-3 sm:gap-8">
             <div className="flex flex-col items-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
                 <CircleGauge size={35} />
@@ -274,7 +274,7 @@ function MapaNoah({
           </div>
         </div>
 
-        <div className="mt-4 rounded-3xl border border-slate-200 bg-white px-5 pb-7 pt-6 shadow-inner">
+        <div className="mt-3 rounded-3xl border border-slate-200 bg-white px-2 pb-6 pt-5 shadow-inner sm:mt-4 sm:px-5 sm:pb-7 sm:pt-6">
           <div className="space-y-7">
             <FilaNoah
               asientos={[
@@ -324,7 +324,7 @@ function FilaNoah({
   ) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 items-center gap-5">
+    <div className="grid grid-cols-3 items-center gap-2 sm:gap-5">
       {asientos.map((asiento, indice) => (
         <AsientoBoton
           key={asiento?.id || `vacio-${indice}`}
@@ -356,9 +356,9 @@ function MapaFlota({
   const filas = crearFilasBus(asientos);
 
   return (
-    <div className="mx-auto min-w-[520px] max-w-[700px] px-1">
-      <div className="relative overflow-hidden rounded-[105px_105px_40px_40px] border-[5px] border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-4 shadow-[0_25px_65px_rgba(15,23,42,0.18)]">
-        <div className="rounded-[78px_78px_24px_24px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-8 pb-6 pt-8 shadow-inner">
+    <div className="mx-auto min-w-[292px] max-w-[700px] px-1">
+      <div className="relative overflow-hidden rounded-[58px_58px_28px_28px] border-[4px] border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-2 shadow-[0_25px_65px_rgba(15,23,42,0.18)] sm:rounded-[105px_105px_40px_40px] sm:border-[5px] sm:p-4">
+        <div className="rounded-[44px_44px_20px_20px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-3 pb-5 pt-6 shadow-inner sm:rounded-[78px_78px_24px_24px] sm:px-8 sm:pb-6 sm:pt-8">
           <div className="mb-5 flex items-center justify-center gap-3 text-emerald-800">
             <BusFront size={30} />
 
@@ -367,7 +367,7 @@ function MapaFlota({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-2 gap-3 sm:gap-8">
             <div className="flex flex-col items-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
                 <CircleGauge size={36} />
@@ -404,7 +404,7 @@ function MapaFlota({
               filas.map((fila, indice) => (
                 <div
                   key={indice}
-                  className="grid grid-cols-[1fr_1fr_74px_1fr_1fr] items-center gap-3"
+                  className="grid grid-cols-[1fr_1fr_42px_1fr_1fr] items-center gap-1 sm:grid-cols-[1fr_1fr_74px_1fr_1fr] sm:gap-3"
                 >
                   <AsientoBoton
                     asiento={fila.izquierda1}
@@ -616,7 +616,7 @@ function AsientoBoton({
 }) {
   if (!asiento) {
     return (
-      <div className="h-[74px] min-w-[66px] rounded-[18px_18px_13px_13px] border-2 border-dashed border-slate-200 bg-slate-50 opacity-70" />
+      <div className="h-[58px] min-w-[46px] rounded-[14px_14px_10px_10px] border-2 border-dashed border-slate-200 bg-slate-50 opacity-70 sm:h-[74px] sm:min-w-[66px] sm:rounded-[18px_18px_13px_13px]" />
     );
   }
 
@@ -650,19 +650,19 @@ function AsientoBoton({
             : `Seleccionar asiento ${asiento.numero}`
       }
       className={[
-        "group relative h-[74px] min-w-[66px] rounded-[18px_18px_13px_13px] border-[3px] font-black",
+        "group relative h-[58px] min-w-[46px] rounded-[14px_14px_10px_10px] border-2 font-black sm:h-[74px] sm:min-w-[66px] sm:rounded-[18px_18px_13px_13px] sm:border-[3px]",
         "shadow-[0_8px_14px_rgba(15,23,42,0.2)] transition-all duration-200",
         clasesEstado,
         "disabled:cursor-not-allowed",
       ].join(" ")}
     >
-      <span className="absolute -left-2 top-4 h-10 w-3 rounded-l-lg bg-slate-600 shadow-sm" />
+      <span className="absolute -left-1 top-3 h-8 w-2 rounded-l-lg bg-slate-600 shadow-sm sm:-left-2 sm:top-4 sm:h-10 sm:w-3" />
 
-      <span className="absolute -right-2 top-4 h-10 w-3 rounded-r-lg bg-slate-600 shadow-sm" />
+      <span className="absolute -right-1 top-3 h-8 w-2 rounded-r-lg bg-slate-600 shadow-sm sm:-right-2 sm:top-4 sm:h-10 sm:w-3" />
 
       <span className="absolute bottom-[-7px] left-2 right-2 h-4 rounded-lg bg-slate-700 shadow-md" />
 
-      <span className="relative z-10 flex h-full items-center justify-center text-2xl">
+      <span className="relative z-10 flex h-full items-center justify-center text-lg sm:text-2xl">
         {seleccionado ? (
           <Check
             size={27}

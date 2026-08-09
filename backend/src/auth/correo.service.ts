@@ -22,7 +22,7 @@ type DatosCorreoRecuperacion = {
 @Injectable()
 export class CorreoService {
   private readonly transporter:
-    Transporter;
+    Transporter | null;
 
   private readonly frontendUrl:
     string;
@@ -35,9 +35,9 @@ export class CorreoService {
       ConfigService,
   ) {
     const host =
-      this.configService.get<string>(
-        'SMTP_HOST',
-      );
+      this.configService
+        .get<string>('SMTP_HOST')
+        ?.trim();
 
     const puerto =
       Number(
@@ -47,32 +47,38 @@ export class CorreoService {
       );
 
     const usuario =
-      this.configService.get<string>(
-        'SMTP_USER',
-      );
+      this.configService
+        .get<string>('SMTP_USER')
+        ?.trim();
 
+    /*
+     * Gmail muestra la contraseña de
+     * aplicación separada por espacios.
+     * Aquí eliminamos automáticamente
+     * esos espacios.
+     */
     const password =
-      this.configService.get<string>(
-        'SMTP_PASS',
-      );
+      this.configService
+        .get<string>('SMTP_PASS')
+        ?.replace(/\s+/g, '');
 
-    const seguro =
+    const seguroConfigurado =
       this.configService.get<string>(
         'SMTP_SECURE',
       ) === 'true';
 
     this.frontendUrl =
       (
-        this.configService.get<string>(
-          'FRONTEND_URL',
-        ) ||
+        this.configService
+          .get<string>('FRONTEND_URL')
+          ?.trim() ||
         'http://localhost:5173'
-      ).replace(/\/$/, '');
+      ).replace(/\/+$/, '');
 
     this.correoRemitente =
-      this.configService.get<string>(
-        'SMTP_FROM',
-      ) ||
+      this.configService
+        .get<string>('SMTP_FROM')
+        ?.trim() ||
       usuario ||
       'no-reply@trans2junio.com';
 
@@ -82,22 +88,53 @@ export class CorreoService {
       !password
     ) {
       console.warn(
-        'La configuración SMTP está incompleta.',
+        'La configuración SMTP está incompleta. Revisa SMTP_HOST, SMTP_USER y SMTP_PASS.',
       );
+
+      this.transporter =
+        null;
+
+      return;
     }
 
     this.transporter =
       nodemailer.createTransport({
         host,
+
         port:
           puerto,
+
+        /*
+         * Puerto 465 utiliza conexión segura.
+         * Puerto 587 utiliza TLS.
+         */
         secure:
-          seguro,
+          puerto === 465 ||
+          seguroConfigurado,
+
+        requireTLS:
+          puerto === 587,
+
         auth: {
           user:
             usuario,
+
           pass:
             password,
+        },
+
+        connectionTimeout:
+          15000,
+
+        greetingTimeout:
+          15000,
+
+        socketTimeout:
+          20000,
+
+        tls: {
+          minVersion:
+            'TLSv1.2',
         },
       });
   }
@@ -105,6 +142,21 @@ export class CorreoService {
   async enviarRecuperacionPassword(
     datos: DatosCorreoRecuperacion,
   ): Promise<void> {
+    if (!this.transporter) {
+      throw new InternalServerErrorException(
+        'El servicio de correo no está configurado. Revisa las variables SMTP del archivo .env.',
+      );
+    }
+
+    const destinatario =
+      datos.destinatario
+        .trim()
+        .toLowerCase();
+
+    const nombreUsuario =
+      datos.nombreUsuario.trim() ||
+      'Usuario';
+
     const enlace =
       `${this.frontendUrl}` +
       `/restablecer-password` +
@@ -117,28 +169,31 @@ export class CorreoService {
         from: {
           name:
             'Trans 2 de Junio',
+
           address:
             this.correoRemitente,
         },
 
         to:
-          datos.destinatario,
+          destinatario,
 
         subject:
           'Recuperación de contraseña - Trans 2 de Junio',
 
         text: `
-Hola ${datos.nombreUsuario}.
+Hola ${nombreUsuario}.
 
-Recibimos una solicitud para cambiar la contraseña de tu cuenta.
+Recibimos una solicitud para restablecer la contraseña de tu cuenta.
 
 Abre el siguiente enlace:
 
 ${enlace}
 
-Este enlace será válido durante 15 minutos.
+El enlace será válido durante 15 minutos y solamente podrá utilizarse una vez.
 
 Si no solicitaste este cambio, ignora este mensaje.
+
+Sindicato Autotransporte Trans 2 de Junio
         `.trim(),
 
         html: `
@@ -146,10 +201,12 @@ Si no solicitaste este cambio, ignora este mensaje.
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
+
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0"
   />
+
   <title>
     Recuperación de contraseña
   </title>
@@ -174,7 +231,9 @@ Si no solicitaste este cambio, ignora este mensaje.
     <tr>
       <td
         align="center"
-        style="padding: 40px 16px;"
+        style="
+          padding: 40px 16px;
+        "
       >
         <table
           role="presentation"
@@ -188,7 +247,8 @@ Si no solicitaste este cambio, ignora este mensaje.
             background: #ffffff;
             border-radius: 24px;
             box-shadow:
-              0 20px 55px rgba(0, 80, 45, 0.14);
+              0 20px 55px
+              rgba(0, 80, 45, 0.14);
           "
         >
           <tr>
@@ -210,12 +270,13 @@ Si no solicitaste este cambio, ignora este mensaje.
                   display: inline-block;
                   padding: 10px 16px;
                   border-radius: 999px;
-                  background: rgba(
-                    255,
-                    255,
-                    255,
-                    0.12
-                  );
+                  background:
+                    rgba(
+                      255,
+                      255,
+                      255,
+                      0.12
+                    );
                   font-size: 12px;
                   font-weight: 700;
                   letter-spacing: 1px;
@@ -262,7 +323,7 @@ Si no solicitaste este cambio, ignora este mensaje.
                 Hola
                 <strong>
                   ${this.escaparHtml(
-                    datos.nombreUsuario,
+                    nombreUsuario,
                   )}
                 </strong>.
               </p>
@@ -285,7 +346,9 @@ Si no solicitaste este cambio, ignora este mensaje.
                 cellspacing="0"
                 cellpadding="0"
                 border="0"
-                style="margin: 28px 0;"
+                style="
+                  margin: 28px 0;
+                "
               >
                 <tr>
                   <td align="center">
@@ -311,7 +374,8 @@ Si no solicitaste este cambio, ignora este mensaje.
               <div
                 style="
                   padding: 18px;
-                  border: 1px solid #d1fae5;
+                  border:
+                    1px solid #d1fae5;
                   border-radius: 14px;
                   background: #ecfdf5;
                   color: #065f46;
@@ -320,7 +384,11 @@ Si no solicitaste este cambio, ignora este mensaje.
                 "
               >
                 Este enlace será válido durante
-                <strong>15 minutos</strong>.
+                <strong>
+                  15 minutos
+                </strong>
+                y solamente podrá utilizarse
+                una vez.
               </div>
 
               <p
@@ -345,8 +413,11 @@ Si no solicitaste este cambio, ignora este mensaje.
                   word-break: break-all;
                 "
               >
-                Si el botón no funciona, copia y pega este enlace:
+                Si el botón no funciona, copia
+                y pega este enlace:
+
                 <br />
+
                 ${enlace}
               </p>
             </td>
@@ -357,7 +428,8 @@ Si no solicitaste este cambio, ignora este mensaje.
               align="center"
               style="
                 padding: 22px;
-                border-top: 1px solid #e2e8f0;
+                border-top:
+                  1px solid #e2e8f0;
                 color: #64748b;
                 font-size: 12px;
               "
@@ -374,6 +446,10 @@ Si no solicitaste este cambio, ignora este mensaje.
 </html>
         `.trim(),
       });
+
+      console.log(
+        `Correo de recuperación enviado correctamente a ${destinatario}`,
+      );
     } catch (error: unknown) {
       console.error(
         'Error al enviar correo de recuperación:',
@@ -383,18 +459,28 @@ Si no solicitaste este cambio, ignora este mensaje.
       );
 
       throw new InternalServerErrorException(
-        'No se pudo enviar el correo de recuperación.',
+        'No se pudo enviar el correo de recuperación. Revisa la configuración de Gmail.',
       );
     }
   }
 
   async verificarConexion():
   Promise<void> {
+    if (!this.transporter) {
+      throw new InternalServerErrorException(
+        'El servicio de correo no está configurado.',
+      );
+    }
+
     try {
       await this.transporter.verify();
+
+      console.log(
+        'Conexión SMTP verificada correctamente.',
+      );
     } catch (error: unknown) {
       console.error(
-        'No se pudo conectar con el servidor SMTP:',
+        'No se pudo conectar con Gmail:',
         this.obtenerMensajeError(
           error,
         ),
@@ -448,11 +534,12 @@ Si no solicitaste este cambio, ignora este mensaje.
       error !== null &&
       'message' in error
     ) {
-      const mensaje = (
-        error as {
-          message?: unknown;
-        }
-      ).message;
+      const mensaje =
+        (
+          error as {
+            message?: unknown;
+          }
+        ).message;
 
       if (
         typeof mensaje ===

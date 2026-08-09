@@ -74,6 +74,10 @@ export class Usuario {
   })
   password!: string;
 
+  /*
+   * Guarda solamente el hash SHA-256
+   * del token de recuperación.
+   */
   @Column({
     name: 'token_recuperacion_password',
     type: 'varchar',
@@ -83,6 +87,10 @@ export class Usuario {
   })
   tokenRecuperacionPassword!: string | null;
 
+  /*
+   * Fecha y hora hasta la que el enlace
+   * de recuperación será válido.
+   */
   @Column({
     name: 'token_recuperacion_expira',
     type: 'timestamp',
