@@ -1,921 +1,709 @@
 import {
-  Fragment,
-  useEffect,
-  useState,
+  lazy,
+  Suspense,
 } from "react";
-
-import {
-  Link,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
 
 import {
   BusFront,
   CalendarDays,
+  CheckCircle2,
   Home,
   LogOut,
-  QrCode,
   Ticket,
-  User,
-  CheckCircle,
 } from "lucide-react";
 
 import {
-  obtenerAsientosPorViaje,
-} from "../../services/asientos.service";
+  Link,
+  useNavigate,
+} from "react-router-dom";
+
+import BusquedaViaje from "../../components/compra/BusquedaViaje";
+import CompraSteps from "../../components/compra/CompraSteps";
+import ModoCompraReserva from "../../components/compra/ModoCompraReserva";
+
+import useCompraReservar from "../../hooks/compra/useCompraReservar";
 
 import {
-  crearReserva,
-} from "../../services/reservas.service";
+  obtenerFechaActual,
+} from "../../utils/compra/compra.utils";
 
-type Asiento = {
-  id: string;
-  numero: number;
-  estado: string;
-};
+const HorariosSalida = lazy(
+  () =>
+    import(
+      "../../components/compra/HorariosSalida"
+    ),
+);
 
-function ComprarPasaje() {
-  const location =
-    useLocation();
+const RutaBanner = lazy(
+  () =>
+    import(
+      "../../components/compra/RutaBanner"
+    ),
+);
 
-  const navigate =
-    useNavigate();
+const SeatMap = lazy(
+  () =>
+    import(
+      "../../components/compra/SeatMap"
+    ),
+);
 
-  const viaje =
-    location.state?.viaje;
+const ResumenCompra = lazy(
+  () =>
+    import(
+      "../../components/compra/ResumenCompra"
+    ),
+);
 
-  const usuario =
-    JSON.parse(
-      localStorage.getItem(
-        "usuario",
-      ) || "{}",
-    );
+const ResumenReservaPendiente = lazy(
+  () =>
+    import(
+      "../../components/compra/ResumenReservaPendiente"
+    ),
+);
 
-  const [
-    asientos,
-    setAsientos,
-  ] = useState<Asiento[]>([]);
+const PagoQR = lazy(
+  () =>
+    import(
+      "../../components/compra/PagoQR"
+    ),
+);
 
-  const [
-    asientoSeleccionado,
-    setAsientoSeleccionado,
-  ] = useState<Asiento | null>(
-    null,
-  );
+function ComprarReservar() {
+  const navigate = useNavigate();
 
-  const [
+  const {
+    usuario,
+    pasajero,
+
+    paso,
+
+    modoOperacion,
+    cambiarModoOperacion,
+
     mensaje,
-    setMensaje,
-  ] = useState("");
-
-  const [
     exito,
-    setExito,
-  ] = useState(false);
 
-  const [
-    cargando,
-    setCargando,
-  ] = useState(true);
+    reservando,
+    bloqueado,
 
-  useEffect(() => {
-    async function cargarAsientos() {
-      if (!viaje?.id) {
-        setCargando(false);
-        return;
-      }
+    confirmarReservaTemporal,
 
-      try {
-        const data =
-          await obtenerAsientosPorViaje(
-            viaje.id,
-          );
+    guardarTicket,
+    descargarTicket,
+    compartirPorWhatsApp,
+    cerrarSesion,
 
-        setAsientos(
-          Array.isArray(data)
-            ? data
-            : [],
-        );
-      } catch {
-        setMensaje(
-          "No se pudieron cargar los asientos.",
-        );
+    compraViaje,
+    pago,
+  } = useCompraReservar();
 
-        setExito(false);
-      } finally {
-        setCargando(false);
-      }
-    }
+  const {
+    rutas,
+    rutaId,
+    fecha,
+    horarios,
+    horarioSeleccionado,
+    vehiculoSeleccionado,
+    viaje,
+    asientos,
+    asientosSeleccionados,
 
-    void cargarAsientos();
-  }, [viaje?.id]);
+    cargandoRutas,
+    cargandoViajes,
+    cargandoAsientos,
 
-  function cerrarSesion() {
-    localStorage.removeItem(
-      "token",
-    );
+    cantidadAsientos,
+    precioUnitario,
+    total,
 
-    localStorage.removeItem(
-      "usuario",
-    );
+    cambiarRuta,
+    cambiarFecha,
+    seleccionarHorario,
+    seleccionarVehiculo,
+    seleccionarAsiento,
+  } = compraViaje;
 
-    navigate("/");
-  }
+  const {
+    mostrarQR,
+    confirmando,
+    compraConfirmada,
+    estadoPago,
+    motivoRechazo,
+    referenciaPago,
+    ticketAprobado,
 
-  async function confirmarReserva() {
-    if (!asientoSeleccionado) {
-      setMensaje(
-        "Selecciona un asiento para continuar.",
-      );
-
-      setExito(false);
-
-      return;
-    }
-
-    try {
-      const reserva =
-        await crearReserva({
-          usuarioId:
-            usuario.id,
-
-          viajeId:
-            viaje.id,
-
-          asientoIds: [
-            asientoSeleccionado.id,
-          ],
-        });
-
-      setMensaje(
-        `Reserva confirmada correctamente. Código: ${reserva.codigoReserva}`,
-      );
-
-      setExito(true);
-
-      setAsientos(
-        (
-          anteriores,
-        ) =>
-          anteriores.map(
-            (
-              asiento,
-            ) =>
-              asiento.id ===
-              asientoSeleccionado.id
-                ? {
-                    ...asiento,
-
-                    estado:
-                      "OCUPADO",
-                  }
-                : asiento,
-          ),
-      );
-
-      setAsientoSeleccionado(
-        null,
-      );
-    } catch {
-      setMensaje(
-        "No se pudo confirmar la reserva.",
-      );
-
-      setExito(false);
-    }
-  }
-
-  if (!viaje) {
-    return (
-      <div
-        className="
-          flex min-h-screen
-          items-center justify-center
-          bg-[#070b16]
-          px-4 text-white
-        "
-      >
-        <div
-          className="
-            w-full max-w-lg
-            rounded-3xl border
-            border-white/10
-            bg-[#111827]
-            p-6 text-center
-            sm:p-10
-          "
-        >
-          <h1
-            className="
-              text-2xl font-black
-              text-red-400
-              sm:text-3xl
-            "
-          >
-            No se seleccionó ningún viaje
-          </h1>
-
-          <Link
-            to="/pasajero/comprar-reservar"
-            className="
-              mt-6 inline-block
-              rounded-xl
-              bg-yellow-400
-              px-6 py-4
-              font-black
-              text-slate-950
-              sm:px-8
-            "
-          >
-            Volver a comprar
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const disponibles =
-    asientos.filter(
-      (
-        asiento,
-      ) =>
-        asiento.estado ===
-        "DISPONIBLE",
-    ).length;
-
-  const ocupados =
-    asientos.filter(
-      (
-        asiento,
-      ) =>
-        asiento.estado !==
-        "DISPONIBLE",
-    ).length;
+    pagarPorQR,
+    enviarComprobante,
+    reintentarPago,
+  } = pago;
 
   return (
-    <div
-      className="
-        min-h-screen
-        bg-[#070b16]
-        text-white
-      "
-    >
-      <nav
-        className="
-          flex flex-col gap-4
-          border-b
-          border-white/10
-          bg-[#0b1020]
-          px-4 py-4
-          sm:px-6
-          lg:flex-row
-          lg:items-center
-          lg:justify-between
-          lg:px-10
-        "
-      >
+    <div className="relative isolate min-h-screen overflow-hidden bg-[#f2f8f4] text-slate-900">
+      {/* NAVEGACIÓN */}
+
+      <nav className="sticky top-0 z-50 isolate overflow-hidden border-b border-lime-400/80 bg-gradient-to-r from-[#005c2e] via-[#00743a] to-[#008844] px-5 py-4 text-white shadow-xl shadow-emerald-950/10 backdrop-blur-xl lg:px-10">
         <div
-          className="
-            flex items-center
-            gap-4
-          "
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              "repeating-radial-gradient(ellipse at 18% 10%, rgba(255,255,255,.22) 0, rgba(255,255,255,.22) 1px, transparent 2px, transparent 18px)",
+          }}
+        />
+
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 480 120"
+          preserveAspectRatio="none"
+          className="pointer-events-none absolute right-0 top-0 h-full w-[360px] opacity-25"
         >
-          <div
-            className="
-              shrink-0
-              rounded-2xl
-              bg-yellow-400
-              p-3 text-slate-950
-            "
-          >
-            <BusFront size={26} />
+          <path
+            d="M270 -20 C315 25 285 75 350 140"
+            fill="none"
+            stroke="#bef264"
+            strokeWidth="15"
+          />
+
+          <path
+            d="M320 -20 C365 25 335 75 400 140"
+            fill="none"
+            stroke="#6ee7b7"
+            strokeWidth="12"
+          />
+
+          <path
+            d="M370 -20 C415 25 385 75 450 140"
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth="5"
+          />
+        </svg>
+
+        <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-lg backdrop-blur-sm">
+              <BusFront size={29} />
+            </div>
+
+            <div>
+              <h1 className="text-xl font-black tracking-tight">
+                Trans 2 de Junio
+              </h1>
+
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-100">
+                Sistema de pasajes
+              </p>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <h1
-              className="
-                truncate text-xl
-                font-black
-              "
+          <div className="flex flex-wrap items-center gap-2 font-semibold text-emerald-50 sm:gap-3">
+            <Link
+              to="/pasajero"
+              className="flex items-center gap-2 rounded-xl px-4 py-3 transition hover:bg-white/15 hover:text-white"
             >
-              Trans 2 de Junio
-            </h1>
+              <Home size={18} />
+              Inicio
+            </Link>
 
-            <p
-              className="
-                text-xs
-                text-slate-400
-              "
+            <span className="flex items-center gap-2 rounded-xl border border-white/30 bg-white px-5 py-3 font-black text-emerald-800 shadow-lg">
+              <Ticket size={18} />
+              Comprar / Reservar
+            </span>
+
+            <Link
+              to="/pasajero/mis-reservas"
+              className="flex items-center gap-2 rounded-xl px-4 py-3 transition hover:bg-white/15 hover:text-white"
             >
-              SISTEMA DE PASAJES
-            </p>
+              <CalendarDays size={18} />
+              Mis Tickets
+            </Link>
+
+            <span className="max-w-[190px] truncate rounded-xl bg-black/10 px-4 py-3 text-sm text-emerald-50">
+              {usuario.email || "pasajero"}
+            </span>
+
+            <button
+              type="button"
+              onClick={cerrarSesion}
+              className="flex items-center gap-2 rounded-xl px-4 py-3 transition hover:bg-red-500/20 hover:text-red-100"
+            >
+              <LogOut size={18} />
+              Salir
+            </button>
           </div>
-        </div>
-
-        <div
-          className="
-            flex w-full
-            items-center gap-4
-            overflow-x-auto
-            pb-1 text-sm
-            font-semibold
-            text-slate-300
-            lg:w-auto
-            lg:gap-7
-            lg:overflow-visible
-            lg:pb-0
-          "
-        >
-          <Link
-            to="/pasajero"
-            className="
-              flex shrink-0
-              items-center gap-2
-              hover:text-yellow-400
-            "
-          >
-            <Home size={18} />
-
-            Inicio
-          </Link>
-
-          <Link
-            to="/pasajero/comprar-reservar"
-            className="
-              flex shrink-0
-              items-center gap-2
-              rounded-xl border
-              border-yellow-400/40
-              px-4 py-2
-              text-yellow-400
-              sm:px-5
-            "
-          >
-            <Ticket size={18} />
-
-            Comprar / Reservar
-          </Link>
-
-          <Link
-            to="/pasajero/mis-reservas"
-            className="
-              flex shrink-0
-              items-center gap-2
-              hover:text-yellow-400
-            "
-          >
-            <CalendarDays
-              size={18}
-            />
-
-            Mis reservas
-          </Link>
-
-          <Link
-            to="/pasajero/tickets"
-            className="
-              flex shrink-0
-              items-center gap-2
-              hover:text-yellow-400
-            "
-          >
-            <QrCode size={18} />
-
-            Mis tickets
-          </Link>
-
-          <span
-            className="
-              hidden text-sm
-              text-slate-400
-              xl:inline
-            "
-          >
-            {usuario.email}
-          </span>
-
-          <button
-            type="button"
-            onClick={
-              cerrarSesion
-            }
-            className="
-              flex shrink-0
-              items-center gap-2
-              hover:text-red-400
-            "
-          >
-            <LogOut size={18} />
-
-            Salir
-          </button>
         </div>
       </nav>
 
-      <main
-        className="
-          mx-auto max-w-6xl
-          px-3 py-6
-          sm:px-6 sm:py-8
-          lg:px-8 lg:py-10
-        "
-      >
-        <h2
-          className="
-            text-3xl
-            font-black
-            sm:text-4xl
-          "
-        >
-          Comprar o reservar pasaje
-        </h2>
+      <FondoCompraDecorativo />
 
-        <p
-          className="
-            mt-2
-            text-slate-400
-          "
-        >
-          Selecciona tu asiento y confirma tu reserva.
-        </p>
+      <main className="relative z-10 mx-auto max-w-[1500px] px-5 py-8 sm:px-7 lg:px-10">
+        {/* ENCABEZADO */}
 
-        <section
-          className="
-            mt-6 rounded-2xl
-            border border-white/10
-            bg-[#111827] p-4
-            sm:mt-8
-            sm:rounded-3xl
-            sm:p-7
-          "
-        >
-          <TituloPaso
-            numero="1"
-            titulo="Ruta y fecha"
-          />
+        <header className="relative mb-8 overflow-hidden rounded-[28px] bg-gradient-to-r from-[#006331] via-[#007a3d] to-[#009149] px-6 py-8 text-white shadow-xl shadow-emerald-900/15 sm:px-9">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border-[40px] border-white/5" />
 
-          <div
-            className="
-              grid gap-4
-              sm:grid-cols-2
-              lg:grid-cols-4
-            "
-          >
-            <Info
-              titulo="Ruta"
-              valor={
-                `${viaje.ruta.origen} → ${viaje.ruta.destino}`
-              }
-            />
+          <div className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-96 rotate-[-8deg] rounded-[50%] bg-lime-300/10" />
 
-            <Info
-              titulo="Fecha"
-              valor={
-                viaje.fecha ||
-                viaje.fechaSalida
-              }
-            />
-
-            <Info
-              titulo="Salida"
-              valor={
-                viaje.horaSalida
-              }
-            />
-
-            <Info
-              titulo="Precio"
-              valor={
-                `Bs. ${viaje.precio}`
-              }
-            />
-          </div>
-        </section>
-
-        <section
-          className="
-            mt-6 rounded-2xl
-            border border-white/10
-            bg-[#111827] p-4
-            sm:rounded-3xl
-            sm:p-7
-          "
-        >
-          <TituloPaso
-            numero="2"
-            titulo="Elige tu asiento"
-          />
-
-          <div
-            className="
-              mb-6 flex
-              flex-wrap gap-3
-              text-sm
-              sm:gap-6
-            "
-          >
-            <Leyenda
-              color="bg-emerald-500"
-              texto={
-                `Disponible (${disponibles})`
-              }
-            />
-
-            <Leyenda
-              color="bg-red-500"
-              texto={
-                `Ocupado (${ocupados})`
-              }
-            />
-
-            <Leyenda
-              color="bg-yellow-400"
-              texto="Seleccionado"
-            />
+          <div className="pointer-events-none absolute right-8 top-7 grid grid-cols-5 gap-2 opacity-35">
+            {Array.from({
+              length: 25,
+            }).map((_, indice) => (
+              <span
+                key={indice}
+                className="h-1.5 w-1.5 rounded-full bg-lime-200"
+              />
+            ))}
           </div>
 
-          {cargando ? (
-            <p className="text-slate-400">
-              Cargando asientos...
-            </p>
-          ) : (
-            <div
-              className="
-                rounded-2xl border
-                border-white/10
-                bg-[#0b1020] p-3
-                sm:rounded-3xl
-                sm:p-8
-              "
-            >
-              <div
-                className="
-                  mb-6 flex
-                  flex-col gap-3
-                  border-b
-                  border-white/10
-                  pb-5
-                  sm:mb-8
-                  sm:flex-row
-                  sm:items-center
-                  sm:justify-between
-                "
-              >
-                <div
-                  className="
-                    flex items-center
-                    gap-3
-                  "
-                >
-                  <div
-                    className="
-                      rounded-full
-                      border
-                      border-white/10
-                      bg-white/5 p-3
-                    "
-                  >
-                    <User size={22} />
-                  </div>
+          <span className="pointer-events-none absolute right-[28%] top-4 text-3xl text-lime-300/80">
+            ✦
+          </span>
 
-                  <div>
-                    <p className="font-black">
-                      CONDUCTOR
-                    </p>
+          <span className="pointer-events-none absolute bottom-5 right-[17%] text-4xl text-lime-200/80">
+            ✦
+          </span>
 
-                    <p
-                      className="
-                        text-sm
-                        text-slate-500
-                      "
-                    >
-                      Parte frontal del bus
-                    </p>
-                  </div>
-                </div>
-
-                <span
-                  className="
-                    self-start
-                    rounded-xl border
-                    border-white/10
-                    px-4 py-2
-                    text-slate-400
-                    sm:self-auto
-                  "
-                >
-                  {viaje.vehiculo.modelo}
-                </span>
-              </div>
-
-              <div
-                className="
-                  mx-auto
-                  max-w-xl
-                "
-              >
-                <div
-                  className="
-                    grid grid-cols-5
-                    gap-2 sm:gap-4
-                  "
-                >
-                  {asientos.map(
-                    (
-                      asiento,
-                      index,
-                    ) => {
-                      const ocupado =
-                        asiento.estado !==
-                        "DISPONIBLE";
-
-                      const seleccionado =
-                        asientoSeleccionado?.id ===
-                        asiento.id;
-
-                      const pasillo =
-                        index % 4 ===
-                        2;
-
-                      return (
-                        <Fragment
-                          key={
-                            asiento.id
-                          }
-                        >
-                          {pasillo && (
-                            <div
-                              aria-hidden="true"
-                            />
-                          )}
-
-                          <button
-                            type="button"
-                            disabled={
-                              ocupado
-                            }
-                            onClick={() =>
-                              setAsientoSeleccionado(
-                                asiento,
-                              )
-                            }
-                            className={`
-                              min-h-12
-                              min-w-0
-                              rounded-xl
-                              border px-1
-                              font-black
-                              transition
-                              ${
-                                ocupado
-                                  ? "cursor-not-allowed border-red-500 bg-red-500/20 text-red-400"
-                                  : seleccionado
-                                    ? "scale-105 border-yellow-400 bg-yellow-400 text-slate-950"
-                                    : "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white"
-                              }
-                            `}
-                          >
-                            {asiento.numero}
-                          </button>
-                        </Fragment>
-                      );
-                    },
-                  )}
-                </div>
-
-                <div
-                  className="
-                    mt-8 border-t
-                    border-white/10
-                    pt-4 text-center
-                    text-slate-500
-                  "
-                >
-                  PARTE TRASERA
-                </div>
-              </div>
+          <div className="relative z-10 flex items-center gap-4">
+            <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-lg backdrop-blur-sm sm:flex">
+              <Ticket size={31} />
             </div>
-          )}
-        </section>
 
-        <section
-          className="
-            mt-6 rounded-2xl
-            border border-white/10
-            bg-[#111827] p-4
-            sm:rounded-3xl
-            sm:p-7
-          "
-        >
-          <TituloPaso
-            numero="3"
-            titulo="Resumen del viaje"
-          />
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-lime-300">
+                Reserva tu próximo viaje
+              </p>
 
-          <div
-            className="
-              grid gap-4
-              sm:grid-cols-2
-              lg:grid-cols-4
-            "
-          >
-            <Info
-              titulo="Pasajero"
-              valor={
-                usuario.nombre ||
-                "Pasajero"
-              }
-            />
+              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+                Comprar o Reservar Pasaje
+              </h2>
 
-            <Info
-              titulo="Asiento"
-              valor={
-                asientoSeleccionado
-                  ? `#${asientoSeleccionado.numero}`
-                  : "No seleccionado"
-              }
-            />
-
-            <Info
-              titulo="Fecha"
-              valor={
-                viaje.fecha ||
-                viaje.fechaSalida
-              }
-            />
-
-            <Info
-              titulo="Total"
-              valor={
-                `Bs. ${viaje.precio}`
-              }
-              destacado
-            />
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50 sm:text-base">
+                Selecciona la ruta, fecha, horario, vehículo y uno o varios
+                asientos.
+              </p>
+            </div>
           </div>
+        </header>
 
-          <button
-            type="button"
-            onClick={
-              confirmarReserva
-            }
-            disabled={
-              !asientoSeleccionado
-            }
-            className="
-              mt-7 flex w-full
-              items-center
-              justify-center gap-2
-              rounded-2xl
-              bg-emerald-500
-              px-4 py-4
-              font-black text-white
-              transition
-              hover:bg-emerald-400
-              disabled:cursor-not-allowed
-              disabled:opacity-40
-            "
+        {/* INDICADOR DE PASOS */}
+
+        <CompraSteps paso={paso} />
+
+        <ModoCompraReserva
+          valor={modoOperacion}
+          bloqueado={bloqueado}
+          onCambiar={cambiarModoOperacion}
+        />
+
+        {/* MENSAJES */}
+
+        {mensaje && (
+          <div
+            role="alert"
+            className={`mt-6 rounded-2xl border p-4 font-bold shadow-sm ${
+              exito
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-red-200 bg-red-50 text-red-700"
+            }`}
           >
-            <CheckCircle size={22} />
+            <div className="flex items-start gap-3">
+              {exito ? (
+                <CheckCircle2
+                  size={22}
+                  className="mt-0.5 shrink-0"
+                />
+              ) : (
+                <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-red-500" />
+              )}
 
-            Confirmar reserva
-          </button>
+              <span className="leading-6">
+                {mensaje}
+              </span>
+            </div>
+          </div>
+        )}
 
-          {mensaje && (
-            <div
-              className={`
-                mt-5 rounded-2xl
-                border p-4
-                font-bold
-                ${
-                  exito
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                    : "border-red-500/30 bg-red-500/10 text-red-400"
+        {/* RUTA Y FECHA */}
+
+        <BusquedaViaje
+          rutas={rutas}
+          rutaId={rutaId}
+          fecha={fecha}
+          fechaMinima={obtenerFechaActual()}
+          cargandoRutas={cargandoRutas}
+          bloqueado={bloqueado}
+          onCambiarRuta={cambiarRuta}
+          onCambiarFecha={cambiarFecha}
+        />
+
+        {/* HORARIOS Y VEHÍCULOS */}
+
+        <Suspense
+          fallback={
+            <CargandoComponente mensaje="Cargando horarios disponibles..." />
+          }
+        >
+          <HorariosSalida
+            horarios={horarios}
+            horarioSeleccionado={horarioSeleccionado}
+            vehiculoSeleccionadoId={
+              vehiculoSeleccionado?.viajeId
+            }
+            cargando={cargandoViajes}
+            bloqueado={bloqueado}
+            onSeleccionarHorario={
+              seleccionarHorario
+            }
+            onSeleccionarVehiculo={(
+              vehiculoDisponible,
+              horaSalida,
+            ) =>
+              void seleccionarVehiculo(
+                vehiculoDisponible,
+                horaSalida,
+              )
+            }
+          />
+        </Suspense>
+
+        {/* INFORMACIÓN DEL VIAJE */}
+
+        {viaje && (
+          <div className="mt-6">
+            <Suspense
+              fallback={
+                <CargandoComponente mensaje="Cargando información del viaje..." />
+              }
+            >
+              <RutaBanner viaje={viaje} />
+            </Suspense>
+          </div>
+        )}
+
+        {/* MAPA DE ASIENTOS */}
+
+        {paso >= 3 && viaje && (
+          <section className="mt-6">
+            {cargandoAsientos ? (
+              <CargandoComponente mensaje="Cargando mapa de asientos..." />
+            ) : (
+              <Suspense
+                fallback={
+                  <CargandoComponente mensaje="Preparando mapa de asientos..." />
                 }
-              `}
-            >
-              {mensaje}
-            </div>
+              >
+                <SeatMap
+                  vehiculo={viaje.vehiculo}
+                  asientos={asientos}
+                  seleccionados={asientosSeleccionados.map(
+                    ({ id }) => id,
+                  )}
+                  bloqueado={bloqueado}
+                  onSeleccionar={
+                    seleccionarAsiento
+                  }
+                />
+              </Suspense>
+            )}
+          </section>
+        )}
+
+        {/* RESUMEN, PAGO O RESERVA */}
+
+        {paso >= 4 &&
+          viaje &&
+          cantidadAsientos > 0 && (
+            <section className="mt-6 space-y-6">
+              {modoOperacion ===
+              "COMPRA" ? (
+                <>
+                  <Suspense
+                    fallback={
+                      <CargandoComponente mensaje="Preparando resumen de compra..." />
+                    }
+                  >
+                    <ResumenCompra
+                      pasajero={pasajero}
+                      origen={
+                        viaje.ruta?.origen
+                      }
+                      destino={
+                        viaje.ruta?.destino
+                      }
+                      fecha={
+                        fecha ||
+                        viaje.fecha
+                      }
+                      hora={
+                        viaje.horaSalida
+                      }
+                      asientos={
+                        asientosSeleccionados
+                      }
+                      precioUnitario={
+                        precioUnitario
+                      }
+                      deshabilitado={
+                        bloqueado
+                      }
+                      onGenerarPagoQR={
+                        pagarPorQR
+                      }
+                    />
+                  </Suspense>
+
+                  {mostrarQR && (
+                    <Suspense
+                      fallback={
+                        <CargandoComponente mensaje="Preparando pago por QR..." />
+                      }
+                    >
+                      <PagoQR
+                        mostrar={
+                          mostrarQR
+                        }
+                        total={total}
+                        confirmando={
+                          confirmando
+                        }
+                        compraConfirmada={
+                          compraConfirmada
+                        }
+                        estadoPago={
+                          estadoPago
+                        }
+                        motivoRechazo={
+                          motivoRechazo
+                        }
+                        referenciaPago={
+                          referenciaPago
+                        }
+                        ticket={
+                          ticketAprobado
+                        }
+                        onReintentarPago={
+                          reintentarPago
+                        }
+                        onVolverInicio={() =>
+                          navigate(
+                            "/pasajero",
+                          )
+                        }
+                        onVerMisTickets={() =>
+                          navigate(
+                            "/pasajero/mis-reservas",
+                          )
+                        }
+                        onGuardarTicket={
+                          guardarTicket
+                        }
+                        onDescargarTicket={() =>
+                          void descargarTicket()
+                        }
+                        onCompartirWhatsApp={() =>
+                          void compartirPorWhatsApp()
+                        }
+                        onConfirmarCompra={
+                          enviarComprobante
+                        }
+                      />
+                    </Suspense>
+                  )}
+                </>
+              ) : (
+                <Suspense
+                  fallback={
+                    <CargandoComponente mensaje="Preparando resumen de reserva..." />
+                  }
+                >
+                  <ResumenReservaPendiente
+                    origen={
+                      viaje.ruta?.origen
+                    }
+                    destino={
+                      viaje.ruta?.destino
+                    }
+                    fecha={
+                      fecha ||
+                      viaje.fecha
+                    }
+                    hora={
+                      viaje.horaSalida
+                    }
+                    numerosAsientos={asientosSeleccionados.map(
+                      ({ numero }) =>
+                        numero,
+                    )}
+                    total={total}
+                    guardando={
+                      reservando
+                    }
+                    onReservar={() =>
+                      void confirmarReservaTemporal()
+                    }
+                  />
+                </Suspense>
+              )}
+            </section>
           )}
-        </section>
+
+        {/* PIE INFORMATIVO */}
+
+        <footer className="mt-10 flex flex-col items-center justify-between gap-4 rounded-[24px] border border-emerald-100 bg-white px-6 py-5 text-center shadow-sm sm:flex-row sm:text-left">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+              <BusFront size={23} />
+            </div>
+
+            <div>
+              <p className="text-sm font-black text-emerald-800">
+                Trans 2 de Junio
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Sistema de venta y reserva de pasajes
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-400">
+            Tu información se encuentra protegida.
+          </p>
+        </footer>
       </main>
     </div>
   );
 }
 
-function TituloPaso({
-  numero,
-  titulo,
+function CargandoComponente({
+  mensaje,
 }: {
-  numero: string;
-  titulo: string;
+  mensaje: string;
 }) {
   return (
-    <div
-      className="
-        mb-6 flex
-        items-center gap-3
-      "
-    >
-      <span
-        className="
-          flex h-9 w-9
-          shrink-0 items-center
-          justify-center
-          rounded-full
-          bg-yellow-400
-          font-black
-          text-slate-950
-        "
-      >
-        {numero}
-      </span>
+    <div className="flex min-h-[160px] items-center justify-center rounded-[28px] border border-emerald-100 bg-white p-7 shadow-lg shadow-emerald-900/5">
+      <div className="text-center">
+        <span className="mx-auto block h-10 w-10 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-700" />
 
-      <h3
-        className="
-          text-xl
-          font-black
-          sm:text-2xl
-        "
-      >
-        {titulo}
-      </h3>
+        <p className="mt-4 font-black text-emerald-800">
+          {mensaje}
+        </p>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Espere un momento.
+        </p>
+      </div>
     </div>
   );
 }
 
-function Info({
-  titulo,
-  valor,
-  destacado = false,
-}: {
-  titulo: string;
-  valor: string;
-  destacado?: boolean;
-}) {
+function FondoCompraDecorativo() {
   return (
     <div
-      className="
-        min-w-0
-        rounded-2xl
-        border
-        border-white/10
-        bg-[#0b1020]
-        p-5
-      "
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
     >
-      <p
-        className="
-          text-sm
-          text-slate-500
-        "
-      >
-        {titulo}
-      </p>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(167,243,208,0.15),transparent_24%),radial-gradient(circle_at_88%_38%,rgba(190,242,100,0.12),transparent_28%)]" />
 
-      <h4
-        className={`
-          mt-2 break-words
-          font-black
-          ${
-            destacado
-              ? "text-2xl text-yellow-400"
-              : "text-lg text-white"
-          }
-        `}
+      <svg
+        viewBox="0 0 300 900"
+        className="absolute left-0 top-40 hidden h-[900px] w-[260px] opacity-[0.10] xl:block"
+        fill="none"
       >
-        {valor}
-      </h4>
+        <path
+          d="M18 0V110Q18 140 48 140H112Q142 140 142 170V255Q142 285 172 285H292"
+          stroke="#047857"
+          strokeWidth="3"
+        />
+
+        <path
+          d="M0 360H68Q98 360 98 390V500Q98 530 128 530H260Q290 530 290 560V650"
+          stroke="#10b981"
+          strokeWidth="3"
+        />
+
+        <path
+          d="M34 900V790Q34 760 64 760H155Q185 760 185 730V680"
+          stroke="#65a30d"
+          strokeWidth="3"
+        />
+
+        {[
+          [18, 72],
+          [142, 212],
+          [236, 285],
+          [68, 360],
+          [98, 462],
+          [220, 530],
+          [34, 820],
+          [185, 710],
+        ].map(
+          ([cx, cy], indice) => (
+            <circle
+              key={indice}
+              cx={cx}
+              cy={cy}
+              r="7"
+              fill="#f2f8f4"
+              stroke="#059669"
+              strokeWidth="3"
+            />
+          ),
+        )}
+      </svg>
+
+      <svg
+        viewBox="0 0 620 1500"
+        preserveAspectRatio="none"
+        className="absolute -right-44 top-24 hidden h-[1550px] w-[590px] xl:block"
+        fill="none"
+      >
+        <path
+          d="M485 -120C145 250 625 500 315 835C120 1045 535 1210 300 1580"
+          stroke="#d9f99d"
+          strokeWidth="128"
+          opacity="0.75"
+        />
+
+        <path
+          d="M485 -120C145 250 625 500 315 835C120 1045 535 1210 300 1580"
+          stroke="#ffffff"
+          strokeWidth="104"
+        />
+
+        <path
+          d="M485 -120C145 250 625 500 315 835C120 1045 535 1210 300 1580"
+          stroke="#a3e635"
+          strokeWidth="88"
+        />
+
+        <path
+          d="M485 -120C145 250 625 500 315 835C120 1045 535 1210 300 1580"
+          stroke="#ffffff"
+          strokeWidth="70"
+        />
+
+        <path
+          d="M485 -120C145 250 625 500 315 835C120 1045 535 1210 300 1580"
+          stroke="#10b981"
+          strokeWidth="56"
+        />
+
+        <path
+          d="M485 -120C145 250 625 500 315 835C120 1045 535 1210 300 1580"
+          stroke="#ffffff"
+          strokeWidth="38"
+        />
+
+        <path
+          d="M485 -120C145 250 625 500 315 835C120 1045 535 1210 300 1580"
+          stroke="#065f46"
+          strokeWidth="25"
+        />
+      </svg>
     </div>
   );
 }
 
-function Leyenda({
-  color,
-  texto,
-}: {
-  color: string;
-  texto: string;
-}) {
-  return (
-    <div
-      className="
-        flex items-center
-        gap-2
-        text-slate-400
-      "
-    >
-      <span
-        className={`
-          h-4 w-4
-          shrink-0 rounded-full
-          ${color}
-        `}
-      />
-
-      {texto}
-    </div>
-  );
-}
-
-export default ComprarPasaje;
+export default ComprarReservar;
