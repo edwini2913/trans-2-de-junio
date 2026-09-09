@@ -71,10 +71,21 @@ const OPCIONES_MENU: OpcionMenu[] = [
     icono: <Users size={21} />,
   },
   {
-    texto: "Venta en oficina",
-    ruta: "/admin/venta-oficina",
-    icono: <CreditCard size={21} />,
+    texto: "Vehículos",
+    ruta: "/admin/vehiculos",
+    icono: <BusFront size={21} />,
   },
+
+  {
+  texto: "Venta en oficina",
+  ruta: "/admin/venta-oficina",
+  icono: <CreditCard size={21} />,
+},
+{
+  texto: "Salidas rápidas",
+  ruta: "/admin/salidas-rapidas",
+  icono: <BusFront size={21} />,
+},
   {
     texto: "Reportes",
     ruta: "/admin/reportes",

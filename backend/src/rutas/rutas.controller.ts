@@ -8,22 +8,32 @@ import {
   Patch,
   Post,
   Query,
-} from '@nestjs/common';
+} from "@nestjs/common";
 
-import { CreateRutaDto } from './dto/create-ruta.dto';
-import { UpdateRutaDto } from './dto/update-ruta.dto';
-import { RutasService } from './rutas.service';
+import {
+  CreateRutaDto,
+} from "./dto/create-ruta.dto";
 
-@Controller('rutas')
+import {
+  UpdateRutaDto,
+} from "./dto/update-ruta.dto";
+
+import {
+  RutasService,
+} from "./rutas.service";
+
+@Controller("rutas")
 export class RutasController {
   constructor(
-    private readonly rutasService: RutasService,
+    private readonly rutasService:
+      RutasService,
   ) {}
 
   /**
    * GET /rutas
    *
-   * Por defecto devuelve solo rutas activas.
+   * Por defecto devuelve solamente
+   * las rutas activas.
    *
    * Para listar todas:
    * GET /rutas?incluirInactivas=true
@@ -31,7 +41,7 @@ export class RutasController {
   @Get()
   obtenerRutas(
     @Query(
-      'incluirInactivas',
+      "incluirInactivas",
       new ParseBoolPipe({
         optional: true,
       }),
@@ -39,22 +49,24 @@ export class RutasController {
     incluirInactivas?: boolean,
   ) {
     if (incluirInactivas) {
-      return this.rutasService.obtenerTodasLasRutas();
+      return this.rutasService
+        .obtenerTodasLasRutas();
     }
 
-    return this.rutasService.obtenerRutas();
+    return this.rutasService
+      .obtenerRutas();
   }
 
   /**
    * GET /rutas/:id
    */
-  @Get(':id')
+  @Get(":id")
   obtenerRutaPorId(
-    @Param('id') id: string,
+    @Param("id")
+    id: string,
   ) {
-    return this.rutasService.obtenerRutaPorId(
-      id,
-    );
+    return this.rutasService
+      .obtenerRutaPorId(id);
   }
 
   /**
@@ -62,25 +74,31 @@ export class RutasController {
    */
   @Post()
   crearRuta(
-    @Body() createRutaDto: CreateRutaDto,
+    @Body()
+    createRutaDto:
+      CreateRutaDto,
   ) {
-    return this.rutasService.crearRuta(
-      createRutaDto,
-    );
+    return this.rutasService
+      .crearRuta(createRutaDto);
   }
 
   /**
    * PATCH /rutas/:id
    */
-  @Patch(':id')
+  @Patch(":id")
   actualizarRuta(
-    @Param('id') id: string,
-    @Body() updateRutaDto: UpdateRutaDto,
+    @Param("id")
+    id: string,
+
+    @Body()
+    updateRutaDto:
+      UpdateRutaDto,
   ) {
-    return this.rutasService.actualizarRuta(
-      id,
-      updateRutaDto,
-    );
+    return this.rutasService
+      .actualizarRuta(
+        id,
+        updateRutaDto,
+      );
   }
 
   /**
@@ -91,25 +109,33 @@ export class RutasController {
    *   "estado": true
    * }
    */
-  @Patch(':id/estado')
+  @Patch(":id/estado")
   cambiarEstadoRuta(
-    @Param('id') id: string,
-    @Body('estado', ParseBoolPipe)
+    @Param("id")
+    id: string,
+
+    @Body(
+      "estado",
+      ParseBoolPipe,
+    )
     estado: boolean,
   ) {
-    return this.rutasService.cambiarEstadoRuta(
-      id,
-      estado,
-    );
+    return this.rutasService
+      .cambiarEstadoRuta(
+        id,
+        estado,
+      );
   }
 
   /**
    * DELETE /rutas/:id
    */
-  @Delete(':id')
+  @Delete(":id")
   eliminarRuta(
-    @Param('id') id: string,
+    @Param("id")
+    id: string,
   ) {
-    return this.rutasService.eliminarRuta(id);
+    return this.rutasService
+      .eliminarRuta(id);
   }
 }

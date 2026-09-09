@@ -34,14 +34,49 @@ export interface ActualizarRutaPayload {
    INTERFACES DE VEHÍCULOS
 ========================================================= */
 
+export type TipoVehiculo =
+  | "FLOTA"
+  | "NOAH"
+  | "HIACE";
+
+export const CAPACIDAD_POR_TIPO: Record<
+  TipoVehiculo,
+  number
+> = {
+  FLOTA: 40,
+  NOAH: 7,
+  HIACE: 10,
+};
+
 export interface Vehiculo {
   id: string;
+  numeroFlota: string | null;
   placa: string;
   marca: string;
   modelo: string;
-  tipo: string;
+  tipo: TipoVehiculo;
   capacidad: number;
   estado: boolean;
+  fechaRegistro?: string;
+  fechaActualizacion?: string | null;
+}
+
+export interface CrearVehiculoPayload {
+  numeroFlota?: string | null;
+  placa: string;
+  marca: string;
+  modelo: string;
+  tipo: TipoVehiculo;
+  estado?: boolean;
+}
+
+export interface ActualizarVehiculoPayload {
+  numeroFlota?: string | null;
+  placa?: string;
+  marca?: string;
+  modelo?: string;
+  tipo?: TipoVehiculo;
+  estado?: boolean;
 }
 
 /* =========================================================
@@ -59,51 +94,100 @@ interface RutaBackend {
   origen?: string;
   destino?: string;
 
-  distanciaKm?: number | string | null;
-  distancia_km?: number | string | null;
+  distanciaKm?:
+    | number
+    | string
+    | null;
+
+  distancia_km?:
+    | number
+    | string
+    | null;
 
   estado?: boolean;
 
   fechaRegistro?: string;
   fecha_registro?: string;
 
-  fechaActualizacion?: string | null;
-  fecha_actualizacion?: string | null;
+  fechaActualizacion?:
+    | string
+    | null;
+
+  fecha_actualizacion?:
+    | string
+    | null;
 }
 
 interface VehiculoBackend {
   id?: string;
+
+  numeroFlota?:
+    | string
+    | null;
+
+  numero_flota?:
+    | string
+    | null;
+
   placa?: string;
   marca?: string;
   modelo?: string;
   tipo?: string;
-  capacidad?: number | string;
+
+  capacidad?:
+    | number
+    | string;
+
   estado?: boolean;
+
+  fechaRegistro?: string;
+  fecha_registro?: string;
+
+  fechaActualizacion?:
+    | string
+    | null;
+
+  fecha_actualizacion?:
+    | string
+    | null;
 }
 
 /* =========================================================
    FUNCIONES AUXILIARES
 ========================================================= */
 
-function obtenerToken(): string | null {
+function obtenerToken():
+  string | null {
   return (
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("token")
+    localStorage.getItem(
+      "access_token",
+    ) ||
+    localStorage.getItem(
+      "token",
+    )
   );
 }
 
 function crearHeaders(
   incluirToken = true,
 ): HeadersInit {
-  const token = obtenerToken();
+  const token =
+    obtenerToken();
 
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
+  const headers:
+    Record<string, string> = {
+      Accept:
+        "application/json",
+      "Content-Type":
+        "application/json",
+    };
 
-  if (incluirToken && token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (
+    incluirToken &&
+    token
+  ) {
+    headers.Authorization =
+      `Bearer ${token}`;
   }
 
   return headers;
@@ -114,21 +198,30 @@ async function obtenerMensajeError(
 ): Promise<string> {
   try {
     const data =
-      (await response.json()) as RespuestaError;
+      (await response.json()) as
+        RespuestaError;
 
-    if (Array.isArray(data.message)) {
-      return data.message.join(", ");
+    if (
+      Array.isArray(
+        data.message,
+      )
+    ) {
+      return data.message.join(
+        ", ",
+      );
     }
 
     if (
-      typeof data.message === "string" &&
+      typeof data.message ===
+        "string" &&
       data.message.trim()
     ) {
       return data.message;
     }
 
     if (
-      typeof data.error === "string" &&
+      typeof data.error ===
+        "string" &&
       data.error.trim()
     ) {
       return data.error;
@@ -136,7 +229,10 @@ async function obtenerMensajeError(
 
     return `Error del servidor: ${response.status}`;
   } catch {
-    return `No se pudo completar la solicitud. Código: ${response.status}`;
+    return (
+      "No se pudo completar la solicitud. " +
+      `Código: ${response.status}`
+    );
   }
 }
 
@@ -145,22 +241,38 @@ async function procesarRespuesta<T>(
 ): Promise<T> {
   if (!response.ok) {
     throw new Error(
-      await obtenerMensajeError(response),
+      await obtenerMensajeError(
+        response,
+      ),
     );
   }
 
-  return response.json() as Promise<T>;
+  return response.json() as
+    Promise<T>;
 }
 
 function convertirNumero(
   valor: unknown,
   valorPredeterminado = 0,
 ): number {
-  const numero = Number(valor);
+  const numero =
+    Number(valor);
 
-  return Number.isFinite(numero)
+  return Number.isFinite(
+    numero,
+  )
     ? numero
     : valorPredeterminado;
+}
+
+function esTipoVehiculo(
+  tipo: string,
+): tipo is TipoVehiculo {
+  return [
+    "FLOTA",
+    "NOAH",
+    "HIACE",
+  ].includes(tipo);
 }
 
 function normalizarRuta(
@@ -172,16 +284,28 @@ function normalizarRuta(
     null;
 
   return {
-    id: String(item.id || ""),
-    origen: String(item.origen || ""),
-    destino: String(item.destino || ""),
+    id:
+      String(item.id || ""),
+
+    origen:
+      String(
+        item.origen || "",
+      ),
+
+    destino:
+      String(
+        item.destino || "",
+      ),
 
     distanciaKm:
       distancia === null
         ? null
-        : convertirNumero(distancia),
+        : convertirNumero(
+            distancia,
+          ),
 
-    estado: item.estado !== false,
+    estado:
+      item.estado !== false,
 
     fechaRegistro:
       item.fechaRegistro ??
@@ -197,16 +321,66 @@ function normalizarRuta(
 function normalizarVehiculo(
   item: VehiculoBackend,
 ): Vehiculo {
+  const tipoNormalizado =
+    String(
+      item.tipo || "NOAH",
+    )
+      .trim()
+      .toUpperCase();
+
+  const tipo:
+    TipoVehiculo =
+      esTipoVehiculo(
+        tipoNormalizado,
+      )
+        ? tipoNormalizado
+        : "NOAH";
+
   return {
-    id: String(item.id || ""),
-    placa: String(item.placa || ""),
-    marca: String(item.marca || ""),
-    modelo: String(item.modelo || ""),
-    tipo: String(item.tipo || ""),
-    capacidad: convertirNumero(
-      item.capacidad,
-    ),
-    estado: item.estado !== false,
+    id:
+      String(item.id || ""),
+
+    numeroFlota:
+      item.numeroFlota ??
+      item.numero_flota ??
+      null,
+
+    placa:
+      String(
+        item.placa || "",
+      ),
+
+    marca:
+      String(
+        item.marca || "",
+      ),
+
+    modelo:
+      String(
+        item.modelo || "",
+      ),
+
+    tipo,
+
+    capacidad:
+      convertirNumero(
+        item.capacidad,
+        CAPACIDAD_POR_TIPO[
+          tipo
+        ],
+      ),
+
+    estado:
+      item.estado !== false,
+
+    fechaRegistro:
+      item.fechaRegistro ??
+      item.fecha_registro,
+
+    fechaActualizacion:
+      item.fechaActualizacion ??
+      item.fecha_actualizacion ??
+      null,
   };
 }
 
@@ -214,53 +388,51 @@ function normalizarVehiculo(
    SERVICIOS DE RUTAS
 ========================================================= */
 
-/**
- * Lista solamente rutas activas.
- * Se utiliza para pasajeros y formularios.
- */
-export async function listarRutas(): Promise<
-  Ruta[]
-> {
-  const response = await fetch(
-    `${API_URL}/rutas`,
-    {
-      method: "GET",
-      headers: crearHeaders(),
-    },
-  );
-
-  const data =
-    await procesarRespuesta<RutaBackend[]>(
-      response,
+export async function listarRutas():
+  Promise<Ruta[]> {
+  const response =
+    await fetch(
+      `${API_URL}/rutas`,
+      {
+        method: "GET",
+        headers:
+          crearHeaders(),
+      },
     );
 
+  const data =
+    await procesarRespuesta<
+      RutaBackend[]
+    >(response);
+
   return Array.isArray(data)
-    ? data.map(normalizarRuta)
+    ? data.map(
+        normalizarRuta,
+      )
     : [];
 }
 
-/**
- * Lista rutas activas e inactivas.
- * Se utiliza en el panel administrador.
- */
-export async function listarTodasLasRutas(): Promise<
-  Ruta[]
-> {
-  const response = await fetch(
-    `${API_URL}/rutas?incluirInactivas=true`,
-    {
-      method: "GET",
-      headers: crearHeaders(),
-    },
-  );
-
-  const data =
-    await procesarRespuesta<RutaBackend[]>(
-      response,
+export async function listarTodasLasRutas():
+  Promise<Ruta[]> {
+  const response =
+    await fetch(
+      `${API_URL}/rutas?incluirInactivas=true`,
+      {
+        method: "GET",
+        headers:
+          crearHeaders(),
+      },
     );
 
+  const data =
+    await procesarRespuesta<
+      RutaBackend[]
+    >(response);
+
   return Array.isArray(data)
-    ? data.map(normalizarRuta)
+    ? data.map(
+        normalizarRuta,
+      )
     : [];
 }
 
@@ -273,53 +445,74 @@ export async function obtenerRutaPorId(
     );
   }
 
-  const response = await fetch(
-    `${API_URL}/rutas/${rutaId}`,
-    {
-      method: "GET",
-      headers: crearHeaders(),
-    },
-  );
-
-  const data =
-    await procesarRespuesta<RutaBackend>(
-      response,
+  const response =
+    await fetch(
+      `${API_URL}/rutas/${rutaId}`,
+      {
+        method: "GET",
+        headers:
+          crearHeaders(),
+      },
     );
 
-  return normalizarRuta(data);
+  const data =
+    await procesarRespuesta<
+      RutaBackend
+    >(response);
+
+  return normalizarRuta(
+    data,
+  );
 }
 
 export async function crearRuta(
   payload: CrearRutaPayload,
 ): Promise<Ruta> {
-  const datos: CrearRutaPayload = {
-    origen: payload.origen.trim(),
-    destino: payload.destino.trim(),
+  const datos:
+    CrearRutaPayload = {
+      origen:
+        payload.origen.trim(),
 
-    distanciaKm:
-      payload.distanciaKm === null ||
-      payload.distanciaKm === undefined
-        ? undefined
-        : Number(payload.distanciaKm),
+      destino:
+        payload.destino.trim(),
 
-    estado: payload.estado ?? true,
-  };
+      distanciaKm:
+        payload.distanciaKm ===
+          null ||
+        payload.distanciaKm ===
+          undefined
+          ? undefined
+          : Number(
+              payload.distanciaKm,
+            ),
 
-  const response = await fetch(
-    `${API_URL}/rutas`,
-    {
-      method: "POST",
-      headers: crearHeaders(),
-      body: JSON.stringify(datos),
-    },
-  );
+      estado:
+        payload.estado ??
+        true,
+    };
 
-  const data =
-    await procesarRespuesta<RutaBackend>(
-      response,
+  const response =
+    await fetch(
+      `${API_URL}/rutas`,
+      {
+        method: "POST",
+        headers:
+          crearHeaders(),
+        body:
+          JSON.stringify(
+            datos,
+          ),
+      },
     );
 
-  return normalizarRuta(data);
+  const data =
+    await procesarRespuesta<
+      RutaBackend
+    >(response);
+
+  return normalizarRuta(
+    data,
+  );
 }
 
 export async function actualizarRuta(
@@ -332,42 +525,63 @@ export async function actualizarRuta(
     );
   }
 
-  const datos: ActualizarRutaPayload = {
-    ...payload,
-  };
+  const datos:
+    ActualizarRutaPayload = {
+      ...payload,
+    };
 
-  if (typeof payload.origen === "string") {
-    datos.origen = payload.origen.trim();
-  }
-
-  if (typeof payload.destino === "string") {
-    datos.destino = payload.destino.trim();
+  if (
+    typeof payload.origen ===
+    "string"
+  ) {
+    datos.origen =
+      payload.origen.trim();
   }
 
   if (
-    payload.distanciaKm !== undefined
+    typeof payload.destino ===
+    "string"
   ) {
-    datos.distanciaKm =
-      payload.distanciaKm === null
-        ? null
-        : Number(payload.distanciaKm);
+    datos.destino =
+      payload.destino.trim();
   }
 
-  const response = await fetch(
-    `${API_URL}/rutas/${rutaId}`,
-    {
-      method: "PATCH",
-      headers: crearHeaders(),
-      body: JSON.stringify(datos),
-    },
-  );
+  if (
+    payload.distanciaKm !==
+    undefined
+  ) {
+    datos.distanciaKm =
+      payload.distanciaKm ===
+      null
+        ? null
+        : Number(
+            payload.distanciaKm,
+          );
+  }
 
-  const data =
-    await procesarRespuesta<RutaBackend>(
-      response,
+  const response =
+    await fetch(
+      `${API_URL}/rutas/${rutaId}`,
+      {
+        method:
+          "PATCH",
+        headers:
+          crearHeaders(),
+        body:
+          JSON.stringify(
+            datos,
+          ),
+      },
     );
 
-  return normalizarRuta(data);
+  const data =
+    await procesarRespuesta<
+      RutaBackend
+    >(response);
+
+  return normalizarRuta(
+    data,
+  );
 }
 
 export async function cambiarEstadoRuta(
@@ -380,23 +594,29 @@ export async function cambiarEstadoRuta(
     );
   }
 
-  const response = await fetch(
-    `${API_URL}/rutas/${rutaId}/estado`,
-    {
-      method: "PATCH",
-      headers: crearHeaders(),
-      body: JSON.stringify({
-        estado,
-      }),
-    },
-  );
-
-  const data =
-    await procesarRespuesta<RutaBackend>(
-      response,
+  const response =
+    await fetch(
+      `${API_URL}/rutas/${rutaId}/estado`,
+      {
+        method:
+          "PATCH",
+        headers:
+          crearHeaders(),
+        body:
+          JSON.stringify({
+            estado,
+          }),
+      },
     );
 
-  return normalizarRuta(data);
+  const data =
+    await procesarRespuesta<
+      RutaBackend
+    >(response);
+
+  return normalizarRuta(
+    data,
+  );
 }
 
 export async function eliminarRuta(
@@ -408,17 +628,22 @@ export async function eliminarRuta(
     );
   }
 
-  const response = await fetch(
-    `${API_URL}/rutas/${rutaId}`,
-    {
-      method: "DELETE",
-      headers: crearHeaders(),
-    },
-  );
+  const response =
+    await fetch(
+      `${API_URL}/rutas/${rutaId}`,
+      {
+        method:
+          "DELETE",
+        headers:
+          crearHeaders(),
+      },
+    );
 
   if (!response.ok) {
     throw new Error(
-      await obtenerMensajeError(response),
+      await obtenerMensajeError(
+        response,
+      ),
     );
   }
 }
@@ -427,16 +652,17 @@ export async function eliminarRuta(
    SERVICIOS DE VEHÍCULOS
 ========================================================= */
 
-export async function listarVehiculos(): Promise<
-  Vehiculo[]
-> {
-  const response = await fetch(
-    `${API_URL}/vehiculos`,
-    {
-      method: "GET",
-      headers: crearHeaders(),
-    },
-  );
+export async function listarVehiculos():
+  Promise<Vehiculo[]> {
+  const response =
+    await fetch(
+      `${API_URL}/vehiculos`,
+      {
+        method: "GET",
+        headers:
+          crearHeaders(),
+      },
+    );
 
   const data =
     await procesarRespuesta<
@@ -444,6 +670,256 @@ export async function listarVehiculos(): Promise<
     >(response);
 
   return Array.isArray(data)
-    ? data.map(normalizarVehiculo)
+    ? data.map(
+        normalizarVehiculo,
+      )
     : [];
+}
+
+export async function listarVehiculosDisponibles():
+  Promise<Vehiculo[]> {
+  const response =
+    await fetch(
+      `${API_URL}/vehiculos/disponibles`,
+      {
+        method: "GET",
+        headers:
+          crearHeaders(),
+      },
+    );
+
+  const data =
+    await procesarRespuesta<
+      VehiculoBackend[]
+    >(response);
+
+  return Array.isArray(data)
+    ? data.map(
+        normalizarVehiculo,
+      )
+    : [];
+}
+
+export async function listarVehiculosRapidos():
+  Promise<Vehiculo[]> {
+  const response =
+    await fetch(
+      `${API_URL}/vehiculos/sector-rapido`,
+      {
+        method: "GET",
+        headers:
+          crearHeaders(),
+      },
+    );
+
+  const data =
+    await procesarRespuesta<
+      VehiculoBackend[]
+    >(response);
+
+  return Array.isArray(data)
+    ? data.map(
+        normalizarVehiculo,
+      )
+    : [];
+}
+
+export async function obtenerVehiculoPorId(
+  vehiculoId: string,
+): Promise<Vehiculo> {
+  if (!vehiculoId.trim()) {
+    throw new Error(
+      "El identificador del vehículo es obligatorio.",
+    );
+  }
+
+  const response =
+    await fetch(
+      `${API_URL}/vehiculos/${vehiculoId}`,
+      {
+        method: "GET",
+        headers:
+          crearHeaders(),
+      },
+    );
+
+  const data =
+    await procesarRespuesta<
+      VehiculoBackend
+    >(response);
+
+  return normalizarVehiculo(
+    data,
+  );
+}
+
+export async function crearVehiculo(
+  payload: CrearVehiculoPayload,
+): Promise<Vehiculo> {
+  const datos:
+    CrearVehiculoPayload = {
+      numeroFlota:
+        payload.numeroFlota
+          ?.trim() ||
+        null,
+
+      placa:
+        payload.placa
+          .trim()
+          .toUpperCase(),
+
+      marca:
+        payload.marca.trim(),
+
+      modelo:
+        payload.modelo.trim(),
+
+      tipo:
+        payload.tipo,
+
+      estado:
+        payload.estado ??
+        true,
+    };
+
+  const response =
+    await fetch(
+      `${API_URL}/vehiculos`,
+      {
+        method:
+          "POST",
+        headers:
+          crearHeaders(),
+        body:
+          JSON.stringify(
+            datos,
+          ),
+      },
+    );
+
+  const data =
+    await procesarRespuesta<
+      VehiculoBackend
+    >(response);
+
+  return normalizarVehiculo(
+    data,
+  );
+}
+
+export async function actualizarVehiculo(
+  vehiculoId: string,
+  payload: ActualizarVehiculoPayload,
+): Promise<Vehiculo> {
+  if (!vehiculoId.trim()) {
+    throw new Error(
+      "El identificador del vehículo es obligatorio.",
+    );
+  }
+
+  const datos:
+    ActualizarVehiculoPayload = {
+      ...payload,
+    };
+
+  if (
+    payload.numeroFlota !==
+    undefined
+  ) {
+    datos.numeroFlota =
+      payload.numeroFlota
+        ?.trim() ||
+      null;
+  }
+
+  if (
+    typeof payload.placa ===
+    "string"
+  ) {
+    datos.placa =
+      payload.placa
+        .trim()
+        .toUpperCase();
+  }
+
+  if (
+    typeof payload.marca ===
+    "string"
+  ) {
+    datos.marca =
+      payload.marca.trim();
+  }
+
+  if (
+    typeof payload.modelo ===
+    "string"
+  ) {
+    datos.modelo =
+      payload.modelo.trim();
+  }
+
+  const response =
+    await fetch(
+      `${API_URL}/vehiculos/${vehiculoId}`,
+      {
+        method:
+          "PATCH",
+        headers:
+          crearHeaders(),
+        body:
+          JSON.stringify(
+            datos,
+          ),
+      },
+    );
+
+  const data =
+    await procesarRespuesta<
+      VehiculoBackend
+    >(response);
+
+  return normalizarVehiculo(
+    data,
+  );
+}
+
+export async function cambiarEstadoVehiculo(
+  vehiculoId: string,
+  estado: boolean,
+): Promise<Vehiculo> {
+  return actualizarVehiculo(
+    vehiculoId,
+    {
+      estado,
+    },
+  );
+}
+
+export async function eliminarVehiculo(
+  vehiculoId: string,
+): Promise<void> {
+  if (!vehiculoId.trim()) {
+    throw new Error(
+      "El identificador del vehículo es obligatorio.",
+    );
+  }
+
+  const response =
+    await fetch(
+      `${API_URL}/vehiculos/${vehiculoId}`,
+      {
+        method:
+          "DELETE",
+        headers:
+          crearHeaders(),
+      },
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      await obtenerMensajeError(
+        response,
+      ),
+    );
+  }
 }

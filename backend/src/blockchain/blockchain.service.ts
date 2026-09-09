@@ -131,7 +131,7 @@ export class BlockchainService implements OnModuleInit {
 
       const fechaBloque =
         new Date();
-
+//Creación del hash completo del bloque//
       const hashBloque =
         this.calcularHash(
           this.construirContenidoBloque(
@@ -277,7 +277,7 @@ export class BlockchainService implements OnModuleInit {
       throw error;
     }
   }
-
+// Verificación del ticket//
   async verificarTicket(
     ticket: Ticket,
     manager?: EntityManager,

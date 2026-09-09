@@ -2,11 +2,18 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-import { obtenerAsientosPorViaje } from "../../services/asientos.service";
+import {
+  bloquearAsiento,
+  liberarAsiento,
+  obtenerAsientosPorViaje,
+} from "../../services/asientos.service";
 import { obtenerRutas } from "../../services/rutas.service";
+
+import { obtenerUsuarioLocal } from "../../utils/compra/compra.utils";
 
 import {
   obtenerOpcionesDeViaje,
@@ -43,6 +50,8 @@ export type AsientoCompra = {
   id: string;
   numero: number | string;
   estado: string;
+  bloqueadoPor?: string | null;
+  bloqueadoHasta?: string | null;
 };
 
 export type MensajeCompra = {
@@ -122,6 +131,17 @@ function useCompraViaje({
     setCargandoAsientos,
   ] = useState(false);
 
+  const asientosSeleccionadosRef =
+    useRef<AsientoCompra[]>([]);
+
+  const operacionesAsientoRef =
+    useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    asientosSeleccionadosRef.current =
+      asientosSeleccionados;
+  }, [asientosSeleccionados]);
+
   const mostrarMensaje = useCallback(
     (
       texto = "",
@@ -134,8 +154,31 @@ function useCompraViaje({
 
   const limpiarSeleccionAsientos =
     useCallback(() => {
+      const usuarioId =
+        obtenerUsuarioLocal().id;
+
+      const seleccionados =
+        asientosSeleccionadosRef.current;
+
+      if (
+        usuarioId &&
+        seleccionados.length > 0
+      ) {
+        void Promise.allSettled(
+          seleccionados.map(
+            ({ id }) =>
+              liberarAsiento(
+                id,
+                usuarioId,
+              ),
+          ),
+        );
+      }
+
       setAsientos([]);
       setAsientosSeleccionados([]);
+
+      asientosSeleccionadosRef.current = [];
 
       onLimpiarProceso?.();
     }, [onLimpiarProceso]);
@@ -427,56 +470,181 @@ function useCompraViaje({
 
   const seleccionarAsiento =
     useCallback(
-      (
+      async (
         asiento: AsientoCompra,
       ) => {
+        if (
+          bloqueado ||
+          operacionesAsientoRef.current.has(
+            asiento.id,
+          )
+        ) {
+          return;
+        }
+
+        const usuarioId =
+          obtenerUsuarioLocal().id;
+
+        if (!usuarioId) {
+          mostrarMensaje(
+            "No se encontró el usuario autenticado. Inicia sesión nuevamente.",
+          );
+          return;
+        }
+
+        const yaSeleccionado =
+          asientosSeleccionadosRef.current.some(
+            (item) =>
+              item.id === asiento.id,
+          );
+
         const disponible =
           normalizarEstado(
             asiento.estado,
           ) === "DISPONIBLE";
 
-        if (
-          !disponible ||
-          bloqueado
-        ) {
+        if (!yaSeleccionado && !disponible) {
+          mostrarMensaje(
+            "Este asiento está ocupado o está siendo seleccionado por otro usuario.",
+          );
           return;
         }
 
-        setAsientosSeleccionados(
-          (seleccionados) => {
-            const yaSeleccionado =
-              seleccionados.some(
-                (item) =>
-                  item.id ===
-                  asiento.id,
-              );
-
-            if (yaSeleccionado) {
-              return seleccionados.filter(
-                (item) =>
-                  item.id !==
-                  asiento.id,
-              );
-            }
-
-            return [
-              ...seleccionados,
-              asiento,
-            ].sort(
-              (a, b) =>
-                Number(a.numero) -
-                Number(b.numero),
-            );
-          },
+        operacionesAsientoRef.current.add(
+          asiento.id,
         );
 
-        mostrarMensaje();
-        onCambiarPaso?.(4);
+        try {
+          if (yaSeleccionado) {
+            const respuesta =
+              await liberarAsiento(
+                asiento.id,
+                usuarioId,
+              );
+
+            setAsientos((lista) =>
+              lista.map((item) =>
+                item.id === asiento.id
+                  ? {
+                      ...item,
+                      ...respuesta.asiento,
+                      estado: "DISPONIBLE",
+                    }
+                  : item,
+              ),
+            );
+
+            setAsientosSeleccionados(
+              (seleccionados) => {
+                const nuevaSeleccion =
+                  seleccionados.filter(
+                    (item) =>
+                      item.id !== asiento.id,
+                  );
+
+                asientosSeleccionadosRef.current =
+                  nuevaSeleccion;
+
+                return nuevaSeleccion;
+              },
+            );
+
+            mostrarMensaje(
+              "Asiento liberado correctamente.",
+              true,
+            );
+            return;
+          }
+
+          const respuesta =
+            await bloquearAsiento(
+              asiento.id,
+              usuarioId,
+            );
+
+          const asientoBloqueado: AsientoCompra = {
+            ...asiento,
+            ...respuesta.asiento,
+            /*
+             * Para este usuario permanece visualmente seleccionable
+             * y puede volver a presionarlo para liberarlo. En la base
+             * de datos sí está BLOQUEADO y los demás usuarios lo ven
+             * como ocupado.
+             */
+            estado: "DISPONIBLE",
+          };
+
+          setAsientos((lista) =>
+            lista.map((item) =>
+              item.id === asiento.id
+                ? asientoBloqueado
+                : item,
+            ),
+          );
+
+          setAsientosSeleccionados(
+            (seleccionados) => {
+              const nuevaSeleccion = [
+                ...seleccionados.filter(
+                  (item) =>
+                    item.id !== asiento.id,
+                ),
+                asientoBloqueado,
+              ].sort(
+                (a, b) =>
+                  Number(a.numero) -
+                  Number(b.numero),
+              );
+
+              asientosSeleccionadosRef.current =
+                nuevaSeleccion;
+
+              return nuevaSeleccion;
+            },
+          );
+
+          mostrarMensaje(
+            "Asiento seleccionado y bloqueado durante 10 minutos.",
+            true,
+          );
+          onCambiarPaso?.(4);
+        } catch (error: unknown) {
+          mostrarMensaje(
+            obtenerMensajeError(
+              error,
+              yaSeleccionado
+                ? "No se pudo liberar el asiento."
+                : "Otro usuario acaba de seleccionar este asiento.",
+            ),
+          );
+
+          if (viaje?.id) {
+            try {
+              const respuesta =
+                await obtenerAsientosPorViaje(
+                  viaje.id,
+                );
+
+              setAsientos(
+                normalizarLista<AsientoCompra>(
+                  respuesta,
+                ),
+              );
+            } catch {
+              /* Conserva el mensaje principal. */
+            }
+          }
+        } finally {
+          operacionesAsientoRef.current.delete(
+            asiento.id,
+          );
+        }
       },
       [
         bloqueado,
         mostrarMensaje,
         onCambiarPaso,
+        viaje?.id,
       ],
     );
 
@@ -503,25 +671,63 @@ function useCompraViaje({
               respuesta,
             );
 
-          setAsientos(lista);
+          const usuarioId =
+            obtenerUsuarioLocal().id;
 
-          setAsientosSeleccionados(
-            (seleccionados) =>
-              seleccionados.filter(
-                (seleccionado) =>
-                  lista.some(
-                    (asiento) =>
-                      asiento.id ===
-                        seleccionado.id &&
-                      normalizarEstado(
-                        asiento.estado,
-                      ) ===
-                        "DISPONIBLE",
-                  ),
-              ),
+          const idsSeleccionados = new Set(
+            asientosSeleccionadosRef.current.map(
+              ({ id }) => id,
+            ),
           );
 
-          return lista;
+          const listaVisual = lista.map(
+            (asiento) =>
+              normalizarEstado(asiento.estado) ===
+                  "BLOQUEADO" &&
+                asiento.bloqueadoPor === usuarioId &&
+                idsSeleccionados.has(asiento.id)
+                ? {
+                    ...asiento,
+                    estado: "DISPONIBLE",
+                  }
+                : asiento,
+          );
+
+          setAsientos(listaVisual);
+
+          setAsientosSeleccionados(
+            (seleccionados) => {
+              const nuevaSeleccion =
+                seleccionados
+                .map((seleccionado) =>
+                  lista.find(
+                    (asiento) =>
+                      asiento.id === seleccionado.id,
+                  ),
+                )
+                .filter(
+                  (
+                    asiento,
+                  ): asiento is AsientoCompra =>
+                    Boolean(asiento) &&
+                    normalizarEstado(
+                      asiento?.estado,
+                    ) === "BLOQUEADO" &&
+                    asiento?.bloqueadoPor === usuarioId,
+                )
+                .map((asiento) => ({
+                  ...asiento,
+                  estado: "DISPONIBLE",
+                }));
+
+              asientosSeleccionadosRef.current =
+                nuevaSeleccion;
+
+              return nuevaSeleccion;
+            },
+          );
+
+          return listaVisual;
         } catch (error: unknown) {
           mostrarMensaje(
             obtenerMensajeError(
@@ -538,6 +744,45 @@ function useCompraViaje({
         viaje?.id,
       ],
     );
+
+  useEffect(() => {
+    if (!viaje?.id) {
+      return;
+    }
+
+    const intervalo = window.setInterval(
+      () => {
+        void recargarAsientos(
+          viaje.id,
+        );
+      },
+      3000,
+    );
+
+    return () => {
+      window.clearInterval(intervalo);
+    };
+  }, [recargarAsientos, viaje?.id]);
+
+  useEffect(() => {
+    return () => {
+      const usuarioId =
+        obtenerUsuarioLocal().id;
+
+      const seleccionados =
+        asientosSeleccionadosRef.current;
+
+      if (!usuarioId || seleccionados.length === 0) {
+        return;
+      }
+
+      void Promise.allSettled(
+        seleccionados.map(({ id }) =>
+          liberarAsiento(id, usuarioId),
+        ),
+      );
+    };
+  }, []);
 
   const bloquearAsientos =
     useCallback(

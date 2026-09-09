@@ -1,62 +1,134 @@
-import { Module } from '@nestjs/common';
-import {ConfigModule,ConfigService,} from '@nestjs/config';
-import {TypeOrmModule,TypeOrmModuleOptions,} from '@nestjs/typeorm';
+import {
+  Module,
+} from "@nestjs/common";
 
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import {
+  ConfigModule,
+  ConfigService,
+} from "@nestjs/config";
 
-import { AdminModule } from './admin/admin.module';
-import { AsientosModule } from './asientos/asientos.module';
-import { AuditoriaModule } from './auditoria/auditoria.module';
-import { AuthModule } from './auth/auth.module';
-import { BlockchainModule } from './blockchain/blockchain.module';
-import { NotificacionesModule } from './notificaciones/notificaciones.module';
-import { PagosModule } from './pagos/pagos.module';
-import { ReclamosModule } from './reclamos/reclamos.module';
-import { ReservasModule } from './reservas/reservas.module';
-import { RutasModule } from './rutas/rutas.module';
-import { TicketsModule } from './tickets/tickets.module';
-import { UsersModule } from './users/users.module';
-import { VehiculosModule } from './vehiculos/vehiculos.module';
-import { VentasModule } from './ventas/ventas.module';
-import { ViajesModule } from './viajes/viajes.module';
+import {
+  TypeOrmModule,
+  TypeOrmModuleOptions,
+} from "@nestjs/typeorm";
+
+import {
+  AppController,
+} from "./app.controller";
+
+import {
+  AppService,
+} from "./app.service";
+
+import {
+  AdminModule,
+} from "./admin/admin.module";
+
+import {
+  AsientosModule,
+} from "./asientos/asientos.module";
+
+import {
+  AuditoriaModule,
+} from "./auditoria/auditoria.module";
+
+import {
+  AuthModule,
+} from "./auth/auth.module";
+
+import {
+  BlockchainModule,
+} from "./blockchain/blockchain.module";
+
+import {
+  NotificacionesModule,
+} from "./notificaciones/notificaciones.module";
+
+import {
+  PagosModule,
+} from "./pagos/pagos.module";
+
+import {
+  ReclamosModule,
+} from "./reclamos/reclamos.module";
+
+import {
+  ReservasModule,
+} from "./reservas/reservas.module";
+
+import {
+  RutasModule,
+} from "./rutas/rutas.module";
+
+import {
+  SalidasRapidasModule,
+} from "./salidas-rapidas/salidas-rapidas.module";
+
+import {
+  TicketsModule,
+} from "./tickets/tickets.module";
+
+import {
+  UsersModule,
+} from "./users/users.module";
+
+import {
+  VehiculosModule,
+} from "./vehiculos/vehiculos.module";
+
+import {
+  VentasModule,
+} from "./ventas/ventas.module";
+
+import {
+  ViajesModule,
+} from "./viajes/viajes.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-//configuración de la conexión a PostgreSQL usando TypeORM//
+
+    /*
+     * Conexión de NestJS con PostgreSQL.
+     */
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
+      imports: [
+        ConfigModule,
+      ],
+
+      inject: [
+        ConfigService,
+      ],
 
       useFactory: (
-        configService: ConfigService,
+        configService:
+          ConfigService,
       ): TypeOrmModuleOptions => {
         const host =
           configService.get<string>(
-            'DATABASE_HOST',
+            "DATABASE_HOST",
           );
 
         const port =
           configService.get<string>(
-            'DATABASE_PORT',
+            "DATABASE_PORT",
           );
 
         const username =
           configService.get<string>(
-            'DATABASE_USER',
+            "DATABASE_USER",
           );
 
         const password =
           configService.get<string>(
-            'DATABASE_PASSWORD',
+            "DATABASE_PASSWORD",
           );
 
         const database =
           configService.get<string>(
-            'DATABASE_NAME',
+            "DATABASE_NAME",
           );
 
         if (
@@ -67,34 +139,36 @@ import { ViajesModule } from './viajes/viajes.module';
           !database
         ) {
           throw new Error(
-            'Faltan variables de conexión a PostgreSQL.',
+            "Faltan variables de conexión a PostgreSQL.",
           );
         }
 
         return {
-          type: 'postgres',
+          type: "postgres",
           host,
-          port: Number(port),
+          port:
+            Number(port),
           username,
           password,
           database,
 
-          schema: 'sistema',
+          schema:
+            "sistema",
 
-          autoLoadEntities: true,
+          autoLoadEntities:
+            true,
 
           /*
-           * En Railway la base de datos está vacía.
-           * Esta opción permitirá crear las tablas
-           * automáticamente dentro del esquema sistema.
-           *
-           * Cuando el sistema esté estable en producción,
-           * se recomienda usar migraciones y cambiarlo
-           * nuevamente a false.
+           * Se mantiene desactivado para evitar
+           * modificaciones automáticas peligrosas
+           * en la base de datos existente.
            */
-          synchronize: false,
+          synchronize:
+            false,
 
-          logging: ['error'],
+          logging: [
+            "error",
+          ],
         };
       },
     }),
@@ -114,9 +188,20 @@ import { ViajesModule } from './viajes/viajes.module';
     NotificacionesModule,
     PagosModule,
     AuditoriaModule,
+
+    /*
+     * Módulo para filas, ventas rápidas,
+     * Noah, Hiace y recojo en camino.
+     */
+    SalidasRapidasModule,
   ],
 
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [
+    AppController,
+  ],
+
+  providers: [
+    AppService,
+  ],
 })
 export class AppModule {}

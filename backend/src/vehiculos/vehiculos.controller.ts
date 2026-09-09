@@ -7,21 +7,21 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-} from '@nestjs/common';
+} from "@nestjs/common";
 
 import {
   CreateVehiculoDto,
-} from './dto/create-vehiculo.dto';
+} from "./dto/create-vehiculo.dto";
 
 import {
   UpdateVehiculoDto,
-} from './dto/update-vehiculo.dto';
+} from "./dto/update-vehiculo.dto";
 
 import {
   VehiculosService,
-} from './vehiculos.service';
+} from "./vehiculos.service";
 
-@Controller('vehiculos')
+@Controller("vehiculos")
 export class VehiculosController {
   constructor(
     private readonly vehiculosService:
@@ -31,7 +31,8 @@ export class VehiculosController {
   @Post()
   crear(
     @Body()
-    createVehiculoDto: CreateVehiculoDto,
+    createVehiculoDto:
+      CreateVehiculoDto,
   ) {
     return this.vehiculosService.crear(
       createVehiculoDto,
@@ -40,42 +41,80 @@ export class VehiculosController {
 
   @Get()
   listarTodos() {
-    return this.vehiculosService.listarTodos();
+    return this.vehiculosService
+      .listarTodos();
   }
 
-  @Get('disponibles')
+  @Get("disponibles")
   listarDisponibles() {
     return this.vehiculosService
       .listarDisponibles();
   }
 
-  @Get(':id')
-  buscarPorId(
-    @Param('id', new ParseUUIDPipe())
-    id: string,
-  ) {
-    return this.vehiculosService.buscarPorId(id);
+  /**
+   * Lista únicamente las flotas activas
+   * disponibles para viajes programados.
+   */
+  @Get("flotas/disponibles")
+  listarFlotasDisponibles() {
+    return this.vehiculosService
+      .listarFlotasDisponibles();
   }
 
-  @Patch(':id')
+  /**
+   * Lista Noah y Hiace activos disponibles
+   * para las salidas rápidas.
+   */
+  @Get("sector-rapido")
+  listarSectorRapido() {
+    return this.vehiculosService
+      .listarSectorRapido();
+  }
+
+  /**
+   * Esta ruta debe permanecer después
+   * de todas las rutas específicas.
+   */
+  @Get(":id")
+  buscarPorId(
+    @Param(
+      "id",
+      new ParseUUIDPipe(),
+    )
+    id: string,
+  ) {
+    return this.vehiculosService
+      .buscarPorId(id);
+  }
+
+  @Patch(":id")
   actualizar(
-    @Param('id', new ParseUUIDPipe())
+    @Param(
+      "id",
+      new ParseUUIDPipe(),
+    )
     id: string,
 
     @Body()
-    updateVehiculoDto: UpdateVehiculoDto,
+    updateVehiculoDto:
+      UpdateVehiculoDto,
   ) {
-    return this.vehiculosService.actualizar(
-      id,
-      updateVehiculoDto,
-    );
+    return this.vehiculosService
+      .actualizar(
+        id,
+        updateVehiculoDto,
+      );
   }
 
-  @Delete(':id')
+  @Delete(":id")
   eliminar(
-    @Param('id', new ParseUUIDPipe())
+    @Param(
+      "id",
+      new ParseUUIDPipe(),
+    )
     id: string,
   ) {
-    return this.vehiculosService.eliminar(id);
+    return this.vehiculosService
+      .eliminar(id);
   }
 }

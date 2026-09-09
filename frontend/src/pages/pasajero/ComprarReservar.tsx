@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useState,
 } from "react";
 
 import {
@@ -20,8 +21,22 @@ import {
 import BusquedaViaje from "../../components/compra/BusquedaViaje";
 import CompraSteps from "../../components/compra/CompraSteps";
 import ModoCompraReserva from "../../components/compra/ModoCompraReserva";
+import OpcionRecojo from "../../components/compra/OpcionRecojo";
+import SectorRapidoCompra from "../../components/compra/SectorRapidoCompra";
+
+import SectorTransporte, {
+  type SectorTransporteTipo,
+} from "../../components/compra/SectorTransporte";
 
 import useCompraReservar from "../../hooks/compra/useCompraReservar";
+
+import type {
+  TurnoSalidaRapida,
+} from "../../services/salidas-rapidas.service";
+
+import type {
+  VehiculoDisponible,
+} from "../../services/viajes.service";
 
 import {
   obtenerFechaActual,
@@ -71,6 +86,13 @@ const PagoQR = lazy(
 
 function ComprarReservar() {
   const navigate = useNavigate();
+
+  const [
+    sectorTransporte,
+    setSectorTransporte,
+  ] = useState<SectorTransporteTipo>(
+    "FLOTA",
+  );
 
   const {
     usuario,
@@ -122,6 +144,7 @@ function ComprarReservar() {
     seleccionarHorario,
     seleccionarVehiculo,
     seleccionarAsiento,
+    limpiarSeleccionViaje,
   } = compraViaje;
 
   const {
@@ -137,6 +160,68 @@ function ComprarReservar() {
     enviarComprobante,
     reintentarPago,
   } = pago;
+
+  const cambiarSectorTransporte = (
+    nuevoSector: SectorTransporteTipo,
+  ) => {
+    if (
+      bloqueado ||
+      nuevoSector === sectorTransporte
+    ) {
+      return;
+    }
+
+    limpiarSeleccionViaje();
+    setSectorTransporte(nuevoSector);
+  };
+
+  const seleccionarTurnoRapido =
+    async (
+      turno: TurnoSalidaRapida,
+    ) => {
+      const vehiculoDisponible:
+        VehiculoDisponible = {
+          viajeId:
+            turno.viaje.id,
+
+          vehiculoId:
+            turno.vehiculo.id,
+
+          placa:
+            turno.vehiculo.placa,
+
+          marca:
+            turno.vehiculo.marca,
+
+          modelo:
+            turno.vehiculo.modelo,
+
+          tipo:
+            turno.vehiculo.tipo,
+
+          capacidad:
+            turno.vehiculo.capacidad,
+
+          precio:
+            Number(
+              turno.viaje.precio,
+            ),
+
+          asientosDisponibles:
+            turno.ocupacion.disponibles,
+
+          estadoViaje:
+            "PROGRAMADO",
+
+          estadoVehiculo:
+            true,
+        };
+
+      await seleccionarVehiculo(
+        vehiculoDisponible,
+        turno.viaje.horaSalida,
+      );
+    };
 
   return (
     <div className="relative isolate min-h-screen overflow-hidden bg-[#f2f8f4] text-slate-900">
@@ -248,12 +333,14 @@ function ComprarReservar() {
           <div className="pointer-events-none absolute right-8 top-7 grid grid-cols-5 gap-2 opacity-35">
             {Array.from({
               length: 25,
-            }).map((_, indice) => (
-              <span
-                key={indice}
-                className="h-1.5 w-1.5 rounded-full bg-lime-200"
-              />
-            ))}
+            }).map(
+              (_, indice) => (
+                <span
+                  key={indice}
+                  className="h-1.5 w-1.5 rounded-full bg-lime-200"
+                />
+              ),
+            )}
           </div>
 
           <span className="pointer-events-none absolute right-[28%] top-4 text-3xl text-lime-300/80">
@@ -279,8 +366,8 @@ function ComprarReservar() {
               </h2>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50 sm:text-base">
-                Selecciona la ruta, fecha, horario, vehículo y uno o varios
-                asientos.
+                Selecciona el sector, ruta, fecha,
+                vehículo y uno o varios asientos.
               </p>
             </div>
           </div>
@@ -290,10 +377,24 @@ function ComprarReservar() {
 
         <CompraSteps paso={paso} />
 
+        {/* SECTOR DE TRANSPORTE */}
+
+        <SectorTransporte
+          valor={sectorTransporte}
+          bloqueado={bloqueado}
+          onCambiar={
+            cambiarSectorTransporte
+          }
+        />
+
+        {/* MODALIDAD */}
+
         <ModoCompraReserva
           valor={modoOperacion}
           bloqueado={bloqueado}
-          onCambiar={cambiarModoOperacion}
+          onCambiar={
+            cambiarModoOperacion
+          }
         />
 
         {/* MENSAJES */}
@@ -330,42 +431,84 @@ function ComprarReservar() {
           rutas={rutas}
           rutaId={rutaId}
           fecha={fecha}
-          fechaMinima={obtenerFechaActual()}
-          cargandoRutas={cargandoRutas}
+          fechaMinima={
+            obtenerFechaActual()
+          }
+          cargandoRutas={
+            cargandoRutas
+          }
           bloqueado={bloqueado}
-          onCambiarRuta={cambiarRuta}
-          onCambiarFecha={cambiarFecha}
+          onCambiarRuta={
+            cambiarRuta
+          }
+          onCambiarFecha={
+            cambiarFecha
+          }
         />
 
-        {/* HORARIOS Y VEHÍCULOS */}
+        {/* SECTOR FLOTAS */}
 
-        <Suspense
-          fallback={
-            <CargandoComponente mensaje="Cargando horarios disponibles..." />
-          }
-        >
-          <HorariosSalida
-            horarios={horarios}
-            horarioSeleccionado={horarioSeleccionado}
-            vehiculoSeleccionadoId={
-              vehiculoSeleccionado?.viajeId
+        {sectorTransporte ===
+          "FLOTA" && (
+          <Suspense
+            fallback={
+              <CargandoComponente mensaje="Cargando horarios disponibles..." />
             }
-            cargando={cargandoViajes}
-            bloqueado={bloqueado}
-            onSeleccionarHorario={
-              seleccionarHorario
-            }
-            onSeleccionarVehiculo={(
-              vehiculoDisponible,
-              horaSalida,
-            ) =>
-              void seleccionarVehiculo(
+          >
+            <HorariosSalida
+              horarios={horarios}
+              horarioSeleccionado={
+                horarioSeleccionado
+              }
+              vehiculoSeleccionadoId={
+                vehiculoSeleccionado
+                  ?.viajeId
+              }
+              cargando={
+                cargandoViajes
+              }
+              bloqueado={bloqueado}
+              onSeleccionarHorario={
+                seleccionarHorario
+              }
+              onSeleccionarVehiculo={(
                 vehiculoDisponible,
                 horaSalida,
+              ) =>
+                void seleccionarVehiculo(
+                  vehiculoDisponible,
+                  horaSalida,
+                )
+              }
+            />
+          </Suspense>
+        )}
+
+        {/* SECTOR NOAH Y HIACE */}
+
+        {sectorTransporte ===
+          "RAPIDO" && (
+          <SectorRapidoCompra
+            rutaId={rutaId}
+            fecha={fecha}
+            bloqueado={bloqueado}
+            onElegirFlota={() =>
+              cambiarSectorTransporte(
+                "FLOTA",
+              )
+            }
+            onDisponibilidadSuspendida={
+              limpiarSeleccionViaje
+            }
+            onSeleccionar={(
+              turno,
+            ) =>
+              void seleccionarTurnoRapido(
+                turno,
               )
             }
           />
-        </Suspense>
+        )}
 
         {/* INFORMACIÓN DEL VIAJE */}
 
@@ -376,7 +519,9 @@ function ComprarReservar() {
                 <CargandoComponente mensaje="Cargando información del viaje..." />
               }
             >
-              <RutaBanner viaje={viaje} />
+              <RutaBanner
+                viaje={viaje}
+              />
             </Suspense>
           </div>
         )}
@@ -394,12 +539,18 @@ function ComprarReservar() {
                 }
               >
                 <SeatMap
-                  vehiculo={viaje.vehiculo}
-                  asientos={asientos}
+                  vehiculo={
+                    viaje.vehiculo
+                  }
+                  asientos={
+                    asientos
+                  }
                   seleccionados={asientosSeleccionados.map(
                     ({ id }) => id,
                   )}
-                  bloqueado={bloqueado}
+                  bloqueado={
+                    bloqueado
+                  }
                   onSeleccionar={
                     seleccionarAsiento
                   }
@@ -408,6 +559,23 @@ function ComprarReservar() {
             )}
           </section>
         )}
+
+        {/* LUGAR DE RECOJO PARA NOAH Y HIACE */}
+
+        {sectorTransporte ===
+          "RAPIDO" &&
+          paso >= 4 &&
+          viaje &&
+          cantidadAsientos > 0 && (
+            <div className="mt-6">
+              <OpcionRecojo
+                usuarioId={
+                  usuario.id || ""
+                }
+                viajeId={viaje.id}
+              />
+            </div>
+          )}
 
         {/* RESUMEN, PAGO O RESERVA */}
 
@@ -424,12 +592,16 @@ function ComprarReservar() {
                     }
                   >
                     <ResumenCompra
-                      pasajero={pasajero}
+                      pasajero={
+                        pasajero
+                      }
                       origen={
-                        viaje.ruta?.origen
+                        viaje.ruta
+                          ?.origen
                       }
                       destino={
-                        viaje.ruta?.destino
+                        viaje.ruta
+                          ?.destino
                       }
                       fecha={
                         fecha ||
@@ -519,10 +691,12 @@ function ComprarReservar() {
                 >
                   <ResumenReservaPendiente
                     origen={
-                      viaje.ruta?.origen
+                      viaje.ruta
+                        ?.origen
                     }
                     destino={
-                      viaje.ruta?.destino
+                      viaje.ruta
+                        ?.destino
                     }
                     fecha={
                       fecha ||
@@ -562,13 +736,15 @@ function ComprarReservar() {
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
-                Sistema de venta y reserva de pasajes
+                Sistema de venta y reserva
+                de pasajes
               </p>
             </div>
           </div>
 
           <p className="text-xs text-slate-400">
-            Tu información se encuentra protegida.
+            Tu información se encuentra
+            protegida.
           </p>
         </footer>
       </main>

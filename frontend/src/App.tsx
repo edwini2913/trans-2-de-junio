@@ -31,93 +31,170 @@ const Register = lazy(
 );
 
 const RecuperarPassword = lazy(
-  () => import("./pages/auth/RecuperarPassword"),
+  () =>
+    import(
+      "./pages/auth/RecuperarPassword"
+    ),
 );
 
 const RestablecerPassword = lazy(
-  () => import("./pages/auth/RestablecerPassword"),
+  () =>
+    import(
+      "./pages/auth/RestablecerPassword"
+    ),
 );
 
 /* PÁGINAS DEL PASAJERO */
 
 const DashboardPasajero = lazy(
-  () => import("./pages/pasajero/Dashboard"),
+  () =>
+    import(
+      "./pages/pasajero/Dashboard"
+    ),
 );
 
 const BuscarViajes = lazy(
-  () => import("./pages/pasajero/BuscarViajes"),
+  () =>
+    import(
+      "./pages/pasajero/BuscarViajes"
+    ),
 );
 
 const ComprarPasaje = lazy(
-  () => import("./pages/pasajero/ComprarPasaje"),
+  () =>
+    import(
+      "./pages/pasajero/ComprarPasaje"
+    ),
 );
 
 const ComprarReservar = lazy(
-  () => import("./pages/pasajero/ComprarReservar"),
+  () =>
+    import(
+      "./pages/pasajero/ComprarReservar"
+    ),
 );
 
 const MisReservas = lazy(
-  () => import("./pages/pasajero/MisReservas"),
+  () =>
+    import(
+      "./pages/pasajero/MisReservas"
+    ),
 );
 
 const MisReclamos = lazy(
-  () => import("./pages/usuario/MisReclamos"),
+  () =>
+    import(
+      "./pages/usuario/MisReclamos"
+    ),
 );
 
 /* ESCÁNER DE TICKETS */
 
 const EscanearTicket = lazy(
-  () => import("./pages/chofer/EscanearTicket"),
+  () =>
+    import(
+      "./pages/chofer/EscanearTicket"
+    ),
 );
 
 /* PANEL ADMINISTRATIVO */
 
 const AdminLayout = lazy(
-  () => import("./layouts/AdminLayout"),
+  () =>
+    import(
+      "./layouts/AdminLayout"
+    ),
 );
 
 const DashboardAdmin = lazy(
-  () => import("./pages/admin/Dashboard"),
+  () =>
+    import(
+      "./pages/admin/Dashboard"
+    ),
 );
 
 const Usuarios = lazy(
-  () => import("./pages/admin/Usuarios"),
+  () =>
+    import(
+      "./pages/admin/Usuarios"
+    ),
+);
+
+const Vehiculos = lazy(
+  () =>
+    import(
+      "./pages/admin/Vehiculos"
+    ),
 );
 
 const VentaOficina = lazy(
-  () => import("./pages/admin/VentaOficina"),
+  () =>
+    import(
+      "./pages/admin/VentaOficina"
+    ),
+);
+
+const SalidasRapidas = lazy(
+  () =>
+    import(
+      "./pages/admin/SalidasRapidas"
+    ),
 );
 
 const Pagos = lazy(
-  () => import("./pages/admin/Pagos"),
+  () =>
+    import(
+      "./pages/admin/Pagos"
+    ),
 );
 
 const Reportes = lazy(
-  () => import("./pages/admin/Reportes"),
+  () =>
+    import(
+      "./pages/admin/Reportes"
+    ),
 );
 
 const Blockchain = lazy(
-  () => import("./pages/admin/Blockchain"),
+  () =>
+    import(
+      "./pages/admin/Blockchain"
+    ),
 );
 
 const Auditoria = lazy(
-  () => import("./pages/admin/Auditoria"),
+  () =>
+    import(
+      "./pages/admin/Auditoria"
+    ),
 );
 
 const Reclamos = lazy(
-  () => import("./pages/admin/Reclamos"),
+  () =>
+    import(
+      "./pages/admin/Reclamos"
+    ),
 );
 
 const ViajesRutas = lazy(
-  () => import("./pages/admin/ViajesRutas"),
+  () =>
+    import(
+      "./pages/admin/ViajesRutas"
+    ),
 );
 
 const RutasPage = lazy(
-  () => import("./pages/admin/rutas/RutasPage"),
+  () =>
+    import(
+      "./pages/admin/rutas/RutasPage"
+    ),
 );
 
 const Configuracion = lazy(
-  () => import("./pages/admin/Configuracion"),
+  () =>
+    import(
+      "./pages/admin/Configuracion"
+    ),
 );
 
 interface RutaConProteccionProps {
@@ -131,7 +208,9 @@ function RutaConProteccion({
 }: RutaConProteccionProps) {
   return (
     <RutaProtegida
-      rolesPermitidos={rolesPermitidos}
+      rolesPermitidos={
+        rolesPermitidos
+      }
     >
       {children}
     </RutaProtegida>
@@ -140,7 +219,9 @@ function RutaConProteccion({
 
 function RutasAplicacion() {
   return (
-    <Suspense fallback={<PageLoader />}>
+    <Suspense
+      fallback={<PageLoader />}
+    >
       <Routes>
         {/* PÁGINAS PÚBLICAS */}
 
@@ -161,12 +242,16 @@ function RutasAplicacion() {
 
         <Route
           path="/recuperar-password"
-          element={<RecuperarPassword />}
+          element={
+            <RecuperarPassword />
+          }
         />
 
         <Route
           path="/restablecer-password"
-          element={<RestablecerPassword />}
+          element={
+            <RestablecerPassword />
+          }
         />
 
         {/* RUTAS DEL PASAJERO */}
@@ -283,7 +368,9 @@ function RutasAplicacion() {
         >
           <Route
             index
-            element={<DashboardAdmin />}
+            element={
+              <DashboardAdmin />
+            }
           />
 
           <Route
@@ -292,8 +379,22 @@ function RutasAplicacion() {
           />
 
           <Route
+            path="vehiculos"
+            element={<Vehiculos />}
+          />
+
+          <Route
             path="venta-oficina"
-            element={<VentaOficina />}
+            element={
+              <VentaOficina />
+            }
+          />
+
+          <Route
+            path="salidas-rapidas"
+            element={
+              <SalidasRapidas />
+            }
           />
 
           <Route
@@ -324,12 +425,16 @@ function RutasAplicacion() {
 
           <Route
             path="reportes"
-            element={<Reportes />}
+            element={
+              <Reportes />
+            }
           />
 
           <Route
             path="blockchain"
-            element={<Blockchain />}
+            element={
+              <Blockchain />
+            }
           />
 
           <Route
@@ -347,22 +452,30 @@ function RutasAplicacion() {
 
           <Route
             path="reclamos"
-            element={<Reclamos />}
+            element={
+              <Reclamos />
+            }
           />
 
           <Route
             path="reclamos/:reclamoId"
-            element={<Reclamos />}
+            element={
+              <Reclamos />
+            }
           />
 
           <Route
             path="viajes-rutas"
-            element={<ViajesRutas />}
+            element={
+              <ViajesRutas />
+            }
           />
 
           <Route
             path="viajes-rutas/rutas"
-            element={<RutasPage />}
+            element={
+              <RutasPage />
+            }
           />
 
           <Route

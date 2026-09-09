@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -94,6 +95,7 @@ export class VentasService {
             manager,
             asientoIds,
             viaje,
+            dto.operadorId,
           );
 
         this.validarDisponibilidadViaje(
@@ -676,6 +678,12 @@ export class VentasService {
       );
     }
 
+    if (!dto.operadorId?.trim()) {
+      throw new BadRequestException(
+        'El operador que realiza la venta es obligatorio',
+      );
+    }
+
     if (
       !Array.isArray(
         dto.asientoIds,
@@ -815,6 +823,7 @@ export class VentasService {
     manager: EntityManager,
     asientoIds: string[],
     viaje: Viaje,
+    operadorId: string,
   ): Promise<AsientoViaje[]> {
     const asientos =
       await manager.find(
@@ -859,11 +868,51 @@ export class VentasService {
       }
 
       if (
+        asiento.estado ===
+        EstadoAsientoViaje.BLOQUEADO
+      ) {
+        const bloqueoVigente =
+          Boolean(asiento.bloqueadoHasta) &&
+          Boolean(
+            asiento.bloqueadoHasta &&
+              asiento.bloqueadoHasta > new Date(),
+          );
+
+        if (!bloqueoVigente) {
+          throw new ConflictException(
+            `El bloqueo del asiento ${asiento.numero} expiró. Selecciónalo nuevamente.`,
+          );
+        }
+
+        if (
+          asiento.bloqueadoPor !==
+          operadorId
+        ) {
+          throw new ConflictException(
+            `El asiento ${asiento.numero} está siendo seleccionado por otro usuario.`,
+          );
+        }
+
+        continue;
+      }
+
+      if (
+        asiento.estado ===
+          EstadoAsientoViaje.RESERVADO ||
+        asiento.estado ===
+          EstadoAsientoViaje.VENDIDO
+      ) {
+        throw new ConflictException(
+          `El asiento ${asiento.numero} ya está reservado o vendido.`,
+        );
+      }
+
+      if (
         asiento.estado !==
         EstadoAsientoViaje.DISPONIBLE
       ) {
-        throw new BadRequestException(
-          `El asiento ${asiento.numero} no está disponible`,
+        throw new ConflictException(
+          `El asiento ${asiento.numero} no está disponible.`,
         );
       }
     }

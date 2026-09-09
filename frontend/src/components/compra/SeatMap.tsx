@@ -13,6 +13,8 @@ export type AsientoCompra = {
   id: string;
   numero: number | string;
   estado: string;
+  bloqueadoPor?: string | null;
+  bloqueadoHasta?: string | null;
 };
 
 export type VehiculoCompra = {
@@ -58,16 +60,34 @@ function SeatMap({
   const disponibles = asientos.filter(
     (asiento) =>
       normalizarEstado(asiento.estado) ===
-      "DISPONIBLE"
+        "DISPONIBLE" &&
+      !seleccionados.includes(asiento.id)
+  ).length;
+
+  const bloqueados = asientos.filter(
+    (asiento) =>
+      normalizarEstado(asiento.estado) ===
+      "BLOQUEADO"
   ).length;
 
   const ocupados = asientos.filter(
-    (asiento) =>
-      normalizarEstado(asiento.estado) !==
-      "DISPONIBLE"
+    (asiento) => {
+      const estado = normalizarEstado(
+        asiento.estado
+      );
+
+      return [
+        "RESERVADO",
+        "VENDIDO",
+        "OCUPADO",
+      ].includes(estado);
+    }
   ).length;
 
   const esNoah = identificarNoah(vehiculo);
+  const esHiace = identificarHiace(vehiculo);
+  const esVehiculoRapido =
+    esNoah || esHiace;
 
   return (
     <section className="overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-xl shadow-emerald-950/5">
@@ -95,20 +115,25 @@ function SeatMap({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             <Leyenda
               color="bg-emerald-500"
               texto={`Disponibles (${disponibles})`}
             />
 
             <Leyenda
-              color="bg-red-500"
-              texto={`Ocupados (${ocupados})`}
+              color="bg-amber-500"
+              texto={`En proceso (${bloqueados})`}
             />
 
             <Leyenda
-              color="bg-amber-400"
+              color="bg-yellow-300"
               texto={`Seleccionados (${seleccionados.length})`}
+            />
+
+            <Leyenda
+              color="bg-red-500"
+              texto={`Ocupados (${ocupados})`}
             />
           </div>
         </div>
@@ -120,7 +145,7 @@ function SeatMap({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white">
-                  {esNoah ? (
+                  {esVehiculoRapido ? (
                     <CarFront size={24} />
                   ) : (
                     <BusFront size={24} />
@@ -135,7 +160,8 @@ function SeatMap({
                   <h3 className="mt-1 text-lg font-black text-slate-900">
                     {obtenerNombreVehiculo(
                       vehiculo,
-                      esNoah
+                      esNoah,
+                      esHiace
                     )}
                   </h3>
                 </div>
@@ -145,9 +171,11 @@ function SeatMap({
                 <DatoVehiculo
                   titulo="Tipo"
                   valor={
-                    esNoah
-                      ? "Toyota Noah"
-                      : vehiculo.tipo || "Flota"
+                    esHiace
+                      ? "Toyota Hiace"
+                      : esNoah
+                        ? "Toyota Noah"
+                        : vehiculo.tipo || "Flota"
                   }
                 />
 
@@ -172,18 +200,19 @@ function SeatMap({
         <div
           className={[
             "grid gap-7",
-            esNoah
+            esVehiculoRapido
               ? "xl:grid-cols-[minmax(390px,650px)_310px]"
               : "xl:grid-cols-[minmax(520px,760px)_310px]",
             "xl:justify-center",
           ].join(" ")}
         >
           <div className="overflow-x-auto pb-3">
-            {esNoah ? (
+            {esVehiculoRapido ? (
               <MapaNoah
                 asientos={asientos}
                 seleccionados={seleccionados}
                 bloqueado={bloqueado}
+                esHiace={esHiace}
                 onSeleccionar={onSeleccionar}
               />
             ) : (
@@ -213,11 +242,13 @@ function MapaNoah({
   asientos,
   seleccionados,
   bloqueado,
+  esHiace,
   onSeleccionar,
 }: {
   asientos: AsientoCompra[];
   seleccionados: string[];
   bloqueado: boolean;
+  esHiace: boolean;
   onSeleccionar: (
     asiento: AsientoCompra
   ) => void;
@@ -297,6 +328,19 @@ function MapaNoah({
               bloqueado={bloqueado}
               onSeleccionar={onSeleccionar}
             />
+
+            {esHiace && (
+              <FilaNoah
+                asientos={[
+                  obtenerAsiento(8),
+                  obtenerAsiento(9),
+                  obtenerAsiento(10),
+                ]}
+                seleccionados={seleccionados}
+                bloqueado={bloqueado}
+                onSeleccionar={onSeleccionar}
+              />
+            )}
           </div>
 
           <div className="mt-7 flex justify-center">
@@ -592,7 +636,9 @@ function ResumenSeleccion({
             <p className="mt-2 text-sm leading-relaxed text-emerald-800/80">
               Presione un asiento disponible para
               seleccionarlo. Vuelva a presionarlo
-              para quitarlo de la selección.
+              para quitarlo de la selección. Los
+              asientos naranjas están siendo
+              seleccionados por otro usuario.
             </p>
           </div>
         </div>
@@ -620,35 +666,48 @@ function AsientoBoton({
     );
   }
 
-  const ocupado =
-    normalizarEstado(asiento.estado) !==
-    "DISPONIBLE";
+  const estado = normalizarEstado(
+    asiento.estado
+  );
 
-  const clasesEstado = ocupado
-    ? "cursor-not-allowed border-red-300 bg-gradient-to-b from-red-400 to-red-600 text-white opacity-75"
-    : seleccionado
-      ? "scale-105 border-amber-300 bg-gradient-to-b from-amber-300 to-amber-500 text-slate-900 shadow-amber-500/30"
-      : "border-emerald-300 bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 text-white hover:scale-105 hover:border-emerald-400 hover:shadow-emerald-500/25";
+  const bloqueadoPorOtro =
+    estado === "BLOQUEADO" &&
+    !seleccionado;
+
+  const ocupado = [
+    "RESERVADO",
+    "VENDIDO",
+    "OCUPADO",
+  ].includes(estado);
+
+  const deshabilitado =
+    bloqueado ||
+    bloqueadoPorOtro ||
+    ocupado;
+
+  const clasesEstado = seleccionado
+    ? "scale-105 border-yellow-300 bg-gradient-to-b from-yellow-200 to-amber-400 text-slate-900 shadow-amber-500/30"
+    : bloqueadoPorOtro
+      ? "cursor-not-allowed border-orange-300 bg-gradient-to-b from-orange-400 to-orange-600 text-white opacity-85"
+      : ocupado
+        ? "cursor-not-allowed border-red-300 bg-gradient-to-b from-red-400 to-red-700 text-white opacity-80"
+        : "border-emerald-300 bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 text-white hover:scale-105 hover:border-emerald-400 hover:shadow-emerald-500/25";
+
+  const descripcionEstado = seleccionado
+    ? `Quitar asiento ${asiento.numero}`
+    : bloqueadoPorOtro
+      ? `Asiento ${asiento.numero} en proceso de compra por otro usuario`
+      : ocupado
+        ? `Asiento ${asiento.numero} ocupado`
+        : `Seleccionar asiento ${asiento.numero}`;
 
   return (
     <button
       type="button"
-      disabled={ocupado || bloqueado}
+      disabled={deshabilitado}
       onClick={() => onSeleccionar(asiento)}
-      title={
-        ocupado
-          ? `Asiento ${asiento.numero} ocupado`
-          : seleccionado
-            ? `Quitar asiento ${asiento.numero}`
-            : `Seleccionar asiento ${asiento.numero}`
-      }
-      aria-label={
-        ocupado
-          ? `Asiento ${asiento.numero} ocupado`
-          : seleccionado
-            ? `Quitar asiento ${asiento.numero}`
-            : `Seleccionar asiento ${asiento.numero}`
-      }
+      title={descripcionEstado}
+      aria-label={descripcionEstado}
       className={[
         "group relative h-[58px] min-w-[46px] rounded-[14px_14px_10px_10px] border-2 font-black sm:h-[74px] sm:min-w-[66px] sm:rounded-[18px_18px_13px_13px] sm:border-[3px]",
         "shadow-[0_8px_14px_rgba(15,23,42,0.2)] transition-all duration-200",
@@ -673,7 +732,7 @@ function AsientoBoton({
         )}
       </span>
 
-      {!ocupado && !seleccionado && (
+      {!deshabilitado && !seleccionado && (
         <span className="pointer-events-none absolute inset-0 rounded-[15px] bg-white/0 transition group-hover:bg-white/10" />
       )}
     </button>
@@ -760,6 +819,25 @@ function identificarNoah(
   return descripcion.includes("NOAH");
 }
 
+function identificarHiace(
+  vehiculo?: VehiculoCompra
+): boolean {
+  if (!vehiculo) {
+    return false;
+  }
+
+  const descripcion = [
+    vehiculo.tipo,
+    vehiculo.marca,
+    vehiculo.modelo,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+
+  return descripcion.includes("HIACE");
+}
+
 function normalizarEstado(
   estado?: string
 ): string {
@@ -770,7 +848,8 @@ function normalizarEstado(
 
 function obtenerNombreVehiculo(
   vehiculo: VehiculoCompra,
-  esNoah: boolean
+  esNoah: boolean,
+  esHiace: boolean
 ): string {
   const nombre = [
     vehiculo.marca,
@@ -786,6 +865,10 @@ function obtenerNombreVehiculo(
 
   if (esNoah) {
     return "Toyota Noah";
+  }
+
+  if (esHiace) {
+    return "Toyota Hiace";
   }
 
   return vehiculo.tipo || "Vehículo asignado";

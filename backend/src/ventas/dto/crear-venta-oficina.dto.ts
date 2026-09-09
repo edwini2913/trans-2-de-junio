@@ -11,12 +11,27 @@ import {
 } from 'class-validator';
 
 export class CrearVentaOficinaDto {
+  /*
+   * Pasajero registrado.
+   * Es opcional para permitir ventas en oficina
+   * a personas que no tengan una cuenta.
+   */
   @IsOptional()
   @IsUUID('4', {
     message:
       'El identificador del usuario no es válido',
   })
   usuarioId?: string;
+
+  /*
+   * Administrador o secretaria que realiza
+   * la venta y bloqueó los asientos.
+   */
+  @IsUUID('4', {
+    message:
+      'El identificador del operador no es válido',
+  })
+  operadorId!: string;
 
   @IsString({
     message:
@@ -87,6 +102,7 @@ export class CrearVentaOficinaDto {
     [
       'EFECTIVO',
       'QR',
+      'TRANSFERENCIA',
     ],
     {
       message:
@@ -96,4 +112,5 @@ export class CrearVentaOficinaDto {
   metodoPago!:
     | 'EFECTIVO'
     | 'QR'
+    | 'TRANSFERENCIA';
 }
