@@ -16,9 +16,59 @@ import {
 } from "../../services/pagos.service";
 
 import {
+  generarTicketPorReserva,
   obtenerTicketPorReserva,
   type TicketRespuesta,
 } from "../../services/tickets.service";
+
+const CLAVE_PAGO_PENDIENTE =
+  "trans2junio_pago_pendiente";
+
+interface PagoPendienteGuardado {
+  pagoId: string;
+  usuarioId: string;
+  referencia: string;
+}
+
+function leerPagoPendiente(
+  usuarioId?: string,
+): PagoPendienteGuardado | null {
+  if (!usuarioId) {
+    return null;
+  }
+
+  try {
+    const contenido = localStorage.getItem(
+      CLAVE_PAGO_PENDIENTE,
+    );
+
+    if (!contenido) {
+      return null;
+    }
+
+    const pago = JSON.parse(
+      contenido,
+    ) as Partial<PagoPendienteGuardado>;
+
+    if (
+      !pago.pagoId ||
+      pago.usuarioId !== usuarioId
+    ) {
+      return null;
+    }
+
+    return {
+      pagoId: pago.pagoId,
+      usuarioId: pago.usuarioId,
+      referencia: pago.referencia ?? "",
+    };
+  } catch {
+    localStorage.removeItem(
+      CLAVE_PAGO_PENDIENTE,
+    );
+    return null;
+  }
+}
 
 export type UsuarioPagoCompra = {
   id?: string;
@@ -116,10 +166,15 @@ function usePagoCompra({
   onRecargarAsientos,
   onSeleccionInvalida,
 }: UsePagoCompraOpciones) {
+  const pagoGuardado =
+    leerPagoPendiente(usuario.id);
+
   const [
     mostrarQR,
     setMostrarQR,
-  ] = useState(false);
+  ] = useState(
+    Boolean(pagoGuardado),
+  );
 
   const [
     confirmando,
@@ -134,12 +189,16 @@ function usePagoCompra({
   const [
     pagoEnRevision,
     setPagoEnRevision,
-  ] = useState(false);
+  ] = useState(
+    Boolean(pagoGuardado),
+  );
 
   const [
     pagoId,
     setPagoId,
-  ] = useState("");
+  ] = useState(
+    pagoGuardado?.pagoId ?? "",
+  );
 
   const [
     estadoPago,
@@ -157,7 +216,9 @@ function usePagoCompra({
   const [
     referenciaPago,
     setReferenciaPago,
-  ] = useState("");
+  ] = useState(
+    pagoGuardado?.referencia ?? "",
+  );
 
   const [
     ticketAprobado,
@@ -182,6 +243,10 @@ function usePagoCompra({
 
   const limpiarPago = useCallback(
     () => {
+      localStorage.removeItem(
+        CLAVE_PAGO_PENDIENTE,
+      );
+
       setMostrarQR(false);
       setConfirmando(false);
       setCompraConfirmada(false);
@@ -387,6 +452,18 @@ function usePagoCompra({
         setCompraConfirmada(false);
         setPagoEnRevision(true);
 
+        localStorage.setItem(
+          CLAVE_PAGO_PENDIENTE,
+          JSON.stringify({
+            pagoId:
+              respuesta.pago.id,
+            usuarioId,
+            referencia:
+              respuesta.pago.referencia ||
+              datos.referencia,
+          } satisfies PagoPendienteGuardado),
+        );
+
         onCambiarPaso?.(4);
 
         const nombreAsientos =
@@ -500,10 +577,20 @@ function usePagoCompra({
               );
             }
 
-            const ticketBackend =
-              await obtenerTicketPorReserva(
-                reservaId,
-              );
+            let ticketBackend:
+              TicketRespuesta;
+
+            try {
+              ticketBackend =
+                await obtenerTicketPorReserva(
+                  reservaId,
+                );
+            } catch {
+              ticketBackend =
+                await generarTicketPorReserva(
+                  reservaId,
+                );
+            }
 
             if (!componenteActivo) {
               return;
@@ -538,6 +625,10 @@ function usePagoCompra({
               JSON.stringify(ticket),
             );
 
+            localStorage.removeItem(
+              CLAVE_PAGO_PENDIENTE,
+            );
+
             mostrarMensaje(
               "¡Pago aprobado! Tu ticket ya fue generado.",
               true,
@@ -561,6 +652,10 @@ function usePagoCompra({
 
             setPagoEnRevision(
               false,
+            );
+
+            localStorage.removeItem(
+              CLAVE_PAGO_PENDIENTE,
             );
 
             onCambiarPaso?.(4);

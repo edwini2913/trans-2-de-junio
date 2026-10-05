@@ -180,6 +180,26 @@ export async function obtenerTicketPorReserva(
 }
 
 /**
+ * Genera o recupera el ticket de una reserva confirmada.
+ * El endpoint del backend es idempotente: si el ticket ya
+ * existe, devuelve el mismo ticket en lugar de duplicarlo.
+ */
+export async function generarTicketPorReserva(
+  reservaId: string,
+): Promise<TicketRespuesta> {
+  const respuesta =
+    await api.post<TicketRespuesta>(
+      `/tickets/generar/${encodeURIComponent(
+        reservaId,
+      )}`,
+    );
+
+  return normalizarTicket(
+    respuesta.data,
+  );
+}
+
+/**
  * Consulta los datos de un ticket usando
  * el token contenido dentro de su QR.
  */

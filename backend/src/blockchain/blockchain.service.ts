@@ -6,27 +6,13 @@ import {
 } from '@nestjs/common';
 
 import { InjectDataSource } from '@nestjs/typeorm';
-
 import { createHash } from 'crypto';
-
-import {
-  DataSource,
-  EntityManager,
-} from 'typeorm';
-
+import {DataSource,EntityManager,} from 'typeorm';
 import { AuditoriaService } from '../auditoria/auditoria.service';
-
-import {
-  ResultadoAuditoria,
-  TipoAccionAuditoria,
-} from '../auditoria/entities/auditoria.entity';
-
+import { ResultadoAuditoria, TipoAccionAuditoria,} from '../auditoria/entities/auditoria.entity';
 import { Ticket } from '../tickets/entities/ticket.entity';
-
 import { BloqueTicket } from './entities/bloque-ticket.entity';
-
 const HASH_GENESIS = '0'.repeat(64);
-
 export interface ResultadoVerificacionBlockchain {
   autentico: boolean;
   cadenaValida: boolean;
@@ -796,7 +782,7 @@ export class BlockchainService implements OnModuleInit {
       '|',
     );
   }
-
+// Genera un hash SHA-256 del contenido para verificar la integridad de los datos.
   private calcularHash(
     contenido: string,
   ): string {

@@ -111,6 +111,40 @@ type ResultadoVenta = {
   [propiedad: string]: unknown;
 };
 
+type DatosTicketFinal = {
+  resultado: ResultadoVenta;
+  pasajero: {
+    nombre: string;
+    ci: string;
+    telefono: string;
+    email?: string;
+  };
+  viaje: ViajeDisponible;
+  asientos: AsientoViaje[];
+  metodoPago: MetodoPago;
+};
+
+const CLAVE_TICKET_ADMIN =
+  "trans2junio_ticket_admin_flota";
+
+function recuperarTicketAdmin():
+  DatosTicketFinal | null {
+  try {
+    const contenido = localStorage.getItem(
+      CLAVE_TICKET_ADMIN,
+    );
+
+    return contenido
+      ? JSON.parse(contenido) as DatosTicketFinal
+      : null;
+  } catch {
+    localStorage.removeItem(
+      CLAVE_TICKET_ADMIN,
+    );
+    return null;
+  }
+}
+
 function VentaSectorFlota() {
   const operadorId =
     obtenerOperadorLocal().id;
@@ -184,6 +218,13 @@ function VentaSectorFlota() {
     useState<ResultadoVenta | null>(
       null,
     );
+
+  const [
+    datosTicketFinal,
+    setDatosTicketFinal,
+  ] = useState<DatosTicketFinal | null>(
+    recuperarTicketAdmin,
+  );
 
   const formularioBloqueado =
     procesando ||
@@ -462,6 +503,7 @@ function VentaSectorFlota() {
     setAsientos([]);
     setAsientosSeleccionados([]);
     setVentaFinal(null);
+    setDatosTicketFinal(null);
   }
 
   function liberarSeleccionActual() {
@@ -856,7 +898,39 @@ function VentaSectorFlota() {
         resultado as ResultadoVenta,
       );
 
+      const ticketFinal: DatosTicketFinal = {
+        resultado:
+          resultado as ResultadoVenta,
+        pasajero: {
+          nombre: nombre.trim(),
+          ci: ci.trim(),
+          telefono: telefono.trim(),
+          email:
+            email.trim() || undefined,
+        },
+        viaje: {
+          ...viaje,
+        },
+        asientos:
+          asientosSeleccionados.map(
+            (asiento) => ({
+              ...asiento,
+            }),
+          ),
+        metodoPago,
+      };
+
+      setDatosTicketFinal(
+        ticketFinal,
+      );
+
+      localStorage.setItem(
+        CLAVE_TICKET_ADMIN,
+        JSON.stringify(ticketFinal),
+      );
+
       asientosSeleccionadosRef.current = [];
+      setAsientosSeleccionados([]);
 
       const idsVendidos = new Set(
         asientosSeleccionados.map(
@@ -974,6 +1048,10 @@ function VentaSectorFlota() {
   }
 
   function nuevaVenta() {
+    localStorage.removeItem(
+      CLAVE_TICKET_ADMIN,
+    );
+
     liberarSeleccionActual();
 
     setNombre("");
@@ -996,6 +1074,7 @@ function VentaSectorFlota() {
     setEsError(false);
 
     setVentaFinal(null);
+    setDatosTicketFinal(null);
     setProcesando(false);
 
     setPaso(1);
@@ -1635,28 +1714,27 @@ function VentaSectorFlota() {
 
           {/* PASO 7 */}
 
-          {paso >= 7 &&
-            ventaFinal &&
-            viaje &&
-            asientosSeleccionados.length >
-              0 && (
+          {datosTicketFinal && (
               <div
                 id="ticket-venta-oficina"
                 className="scroll-mt-28"
               >
                 <TicketVentaOficina
-                  resultado={ventaFinal}
-                  pasajero={{
-                    nombre,
-                    ci,
-                    telefono,
-                    email,
-                  }}
-                  viaje={viaje}
-                  asientos={
-                    asientosSeleccionados
+                  resultado={
+                    datosTicketFinal.resultado
                   }
-                  metodoPago={metodoPago}
+                  pasajero={
+                    datosTicketFinal.pasajero
+                  }
+                  viaje={
+                    datosTicketFinal.viaje
+                  }
+                  asientos={
+                    datosTicketFinal.asientos
+                  }
+                  metodoPago={
+                    datosTicketFinal.metodoPago
+                  }
                   onNuevaVenta={
                     nuevaVenta
                   }

@@ -1,6 +1,8 @@
 import {
   lazy,
   Suspense,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -87,6 +89,9 @@ const PagoQR = lazy(
 function ComprarReservar() {
   const navigate = useNavigate();
 
+  const seccionResultadoPagoRef =
+    useRef<HTMLDivElement | null>(null);
+
   const [
     sectorTransporte,
     setSectorTransporte,
@@ -160,6 +165,39 @@ function ComprarReservar() {
     enviarComprobante,
     reintentarPago,
   } = pago;
+
+  /*
+   * Lleva al pasajero al resultado cuando
+   * el pago sea aprobado o rechazado.
+   */
+  useEffect(() => {
+    if (
+      !mostrarQR ||
+      (
+        !compraConfirmada &&
+        estadoPago !== "RECHAZADO"
+      )
+    ) {
+      return;
+    }
+
+    const temporizador =
+      window.setTimeout(() => {
+        seccionResultadoPagoRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 150);
+
+    return () =>
+      window.clearTimeout(
+        temporizador,
+      );
+  }, [
+    compraConfirmada,
+    estadoPago,
+    mostrarQR,
+  ]);
 
   const cambiarSectorTransporte = (
     nuevoSector: SectorTransporteTipo,
@@ -581,7 +619,14 @@ function ComprarReservar() {
 
         {paso >= 4 &&
           viaje &&
-          cantidadAsientos > 0 && (
+          (
+            cantidadAsientos > 0 ||
+            (
+              modoOperacion ===
+                "COMPRA" &&
+              mostrarQR
+            )
+          ) && (
             <section className="mt-6 space-y-6">
               {modoOperacion ===
               "COMPRA" ? (
@@ -626,12 +671,16 @@ function ComprarReservar() {
                   </Suspense>
 
                   {mostrarQR && (
-                    <Suspense
-                      fallback={
-                        <CargandoComponente mensaje="Preparando pago por QR..." />
-                      }
+                    <div
+                      ref={seccionResultadoPagoRef}
+                      className="scroll-mt-28"
                     >
-                      <PagoQR
+                      <Suspense
+                        fallback={
+                          <CargandoComponente mensaje="Preparando pago por QR..." />
+                        }
+                      >
+                        <PagoQR
                         mostrar={
                           mostrarQR
                         }
@@ -679,8 +728,9 @@ function ComprarReservar() {
                         onConfirmarCompra={
                           enviarComprobante
                         }
-                      />
-                    </Suspense>
+                        />
+                      </Suspense>
+                    </div>
                   )}
                 </>
               ) : (

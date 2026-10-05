@@ -87,6 +87,13 @@ function useCompraReservar() {
     total,
   } = compraViaje;
 
+  /*
+   * IMPORTANTE:
+   * Se pasa directamente la función importada.
+   * De esta manera mantiene la misma referencia
+   * y no reinicia la consulta automática del pago
+   * en cada renderizado.
+   */
   const pago =
     usePagoCompra({
       usuario,
@@ -103,30 +110,7 @@ function useCompraReservar() {
         reservando,
 
       construirTicket:
-        ({
-          ticketBackend,
-          viaje:
-            viajeSeleccionado,
-          fecha:
-            fechaSeleccionada,
-          asientos,
-          total:
-            totalSeleccionado,
-        }) =>
-          construirTicketAprobado({
-            ticketBackend,
-
-            viaje:
-              viajeSeleccionado,
-
-            fecha:
-              fechaSeleccionada,
-
-            asientos,
-
-            total:
-              totalSeleccionado,
-          }),
+        construirTicketAprobado,
 
       onMensaje:
         mostrarMensaje,

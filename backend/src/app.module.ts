@@ -90,89 +90,32 @@ import {
       isGlobal: true,
     }),
 
-    /*
-     * Conexión de NestJS con PostgreSQL.
-     */
-    TypeOrmModule.forRootAsync({
-      imports: [
-        ConfigModule,
-      ],
+     //Conexión de NestJS con PostgreSQL.//
+  TypeOrmModule.forRootAsync({
+     // Permite utilizar las variables de configuración del sistema.
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (configService: ConfigService) => {
+    // Obtiene los datos de conexión desde las variables de entorno (.env).//
+    const host = configService.get<string>('DATABASE_HOST');
+    const port = configService.get<string>('DATABASE_PORT');
+    const user = configService.get<string>('DATABASE_USER');
+    const password = configService.get<string>('DATABASE_PASSWORD');
+    const database = configService.get<string>('DATABASE_NAME');
 
-      inject: [
-        ConfigService,
-      ],
-
-      useFactory: (
-        configService:
-          ConfigService,
-      ): TypeOrmModuleOptions => {
-        const host =
-          configService.get<string>(
-            "DATABASE_HOST",
-          );
-
-        const port =
-          configService.get<string>(
-            "DATABASE_PORT",
-          );
-
-        const username =
-          configService.get<string>(
-            "DATABASE_USER",
-          );
-
-        const password =
-          configService.get<string>(
-            "DATABASE_PASSWORD",
-          );
-
-        const database =
-          configService.get<string>(
-            "DATABASE_NAME",
-          );
-
-        if (
-          !host ||
-          !port ||
-          !username ||
-          !password ||
-          !database
-        ) {
-          throw new Error(
-            "Faltan variables de conexión a PostgreSQL.",
-          );
-        }
-
-        return {
-          type: "postgres",
-          host,
-          port:
-            Number(port),
-          username,
-          password,
-          database,
-
-          schema:
-            "sistema",
-
-          autoLoadEntities:
-            true,
-
-          /*
-           * Se mantiene desactivado para evitar
-           * modificaciones automáticas peligrosas
-           * en la base de datos existente.
-           */
-          synchronize:
-            false,
-
-          logging: [
-            "error",
-          ],
-        };
-      },
-    }),
-
+    return {
+      type: 'postgres',
+      host,
+      port: Number(port),
+      username: user,
+      password,
+      database,
+      schema: 'sistema',
+      autoLoadEntities: true,
+      synchronize: false,
+    };
+  },
+}),
     UsersModule,
     AuthModule,
     BlockchainModule,
