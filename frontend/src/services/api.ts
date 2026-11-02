@@ -1,6 +1,7 @@
 
 import axios, {
   AxiosError,
+  type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from "axios";
 
@@ -16,29 +17,31 @@ if (!API_URL) {
   );
 }
 
+const BASE_URL = API_URL.replace(/\/+$/, "");
+
 const api = axios.create({
-  baseURL: API_URL.replace(/\/+$/, ""),
-  timeout: 15000,
+  baseURL: BASE_URL,
+  timeout: 20000,
   headers: {
     Accept: "application/json",
-    "Content-Type": "application/json",
   },
 });
 
 /* =========================================
-   INTERFAZ DE ERRORES
+   TIPOS DE ERRORES
 ========================================= */
 
 export interface ErrorApi {
   mensaje: string;
   estado?: number;
+  codigo?: string;
   sinConexion: boolean;
   tiempoAgotado: boolean;
   errorOriginal?: unknown;
 }
 
 /* =========================================
-   OBTENER TOKEN JWT
+   TOKEN JWT
 ========================================= */
 
 function obtenerToken(): string | null {
@@ -63,12 +66,12 @@ export function limpiarSesion(): void {
     localStorage.removeItem("access_token");
     localStorage.removeItem("usuario");
   } catch {
-    // El navegador puede bloquear el almacenamiento.
+    // Almacenamiento no disponible.
   }
 }
 
 /* =========================================
-   IDENTIFICAR RUTAS DE AUTENTICACIÓN
+   RUTAS DE AUTENTICACIÓN
 ========================================= */
 
 function esRutaAutenticacion(
@@ -83,7 +86,7 @@ function esRutaAutenticacion(
 }
 
 /* =========================================
-   OBTENER MENSAJE DEL SERVIDOR
+   RESPUESTA DE ERRORES DEL SERVIDOR
 ========================================= */
 
 function obtenerMensajeServidor(
@@ -103,8 +106,8 @@ function obtenerMensajeServidor(
 
     if (Array.isArray(respuesta.message)) {
       const mensajes = respuesta.message.filter(
-        (item): item is string =>
-          typeof item === "string",
+        (valor): valor is string =>
+          typeof valor === "string",
       );
 
       if (mensajes.length > 0) {
@@ -113,17 +116,17 @@ function obtenerMensajeServidor(
     }
 
     if (
-      typeof respuesta.message === "string" &&
-      respuesta.message.trim()
-    ) {
-      return respuesta.message;
-    }
-
-    if (
       typeof respuesta.mensaje === "string" &&
       respuesta.mensaje.trim()
     ) {
       return respuesta.mensaje;
+    }
+
+    if (
+      typeof respuesta.message === "string" &&
+      respuesta.message.trim()
+    ) {
+      return respuesta.message;
     }
   }
 
@@ -132,33 +135,33 @@ function obtenerMensajeServidor(
       return "Los datos enviados no son válidos.";
 
     case 401:
-      return "Credenciales incorrectas o sesión expirada.";
+      return "Correo electrónico o contraseña incorrectos.";
 
     case 403:
       return "No tiene permisos para realizar esta acción.";
 
     case 404:
-      return "El recurso solicitado no existe.";
+      return "No se encontró el recurso solicitado.";
 
     case 409:
       return "El registro ya existe.";
 
     case 422:
-      return "Los datos no cumplen las validaciones requeridas.";
+      return "Los datos enviados no cumplen las validaciones.";
 
     case 429:
-      return "Demasiadas solicitudes. Intente nuevamente más tarde.";
+      return "Demasiadas solicitudes. Intente más tarde.";
 
     case 500:
-      return "Ocurrió un error interno en el servidor.";
+      return "Error interno del servidor. Contacte al administrador.";
 
     case 502:
     case 503:
     case 504:
-      return "El servidor no está disponible temporalmente.";
+      return "El servicio no está disponible temporalmente.";
 
     default:
-      return "Ocurrió un error al comunicarse con el servidor.";
+      return "No se pudo completar la solicitud.";
   }
 }
 
@@ -170,7 +173,11 @@ api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = obtenerToken();
 
-    if (token) {
+    const url = config.url ?? "";
+
+    if (esRutaAutenticacion(url)) {
+      config.headers.delete("Authorization");
+    } else if (token) {
       config.headers.set(
         "Authorization",
         `Bearer ${token}`,
@@ -182,9 +189,7 @@ api.interceptors.request.use(
     return config;
   },
 
-  (error: unknown) => {
-    return Promise.reject(error);
-  },
+  (error: unknown) => Promise.reject(error),
 );
 
 /* =========================================
@@ -205,31 +210,29 @@ api.interceptors.response.use(
       typeof navigator !== "undefined" &&
       navigator.onLine === false;
 
+    const solicitudCancelada =
+      error.code === "ERR_CANCELED";
+
     const sinRespuestaServidor =
       !error.response &&
       !tiempoAgotado &&
-      error.code !== "ERR_CANCELED";
+      !solicitudCancelada;
 
     const sinConexion =
       sinConexionNavegador ||
       sinRespuestaServidor;
 
     /* =====================================
-       CONTROLAR SESIÓN EXPIRADA
+       CONTROL DE SESIÓN JWT
     ===================================== */
 
     const urlSolicitud =
       error.config?.url ?? "";
 
-    const esAutenticacion =
-      esRutaAutenticacion(urlSolicitud);
-
     if (
       estado === 401 &&
-      !esAutenticacion
+      !esRutaAutenticacion(urlSolicitud)
     ) {
-      // Limpiar solamente si la solicitud
-      // utilizó el token de la sesión actual.
       const autorizacion =
         error.config?.headers?.get(
           "Authorization",
@@ -246,11 +249,10 @@ api.interceptors.response.use(
     }
 
     /* =====================================
-       MENSAJES DE ERROR
+       MENSAJES PERSONALIZADOS
     ===================================== */
 
-    let mensaje =
-      obtenerMensajeServidor(error);
+    let mensaje = obtenerMensajeServidor(error);
 
     if (tiempoAgotado) {
       mensaje =
@@ -260,27 +262,61 @@ api.interceptors.response.use(
         "No tiene conexión a Internet. Verifique su conexión.";
     } else if (sinRespuestaServidor) {
       mensaje =
-        "No se pudo conectar con el servidor. Verifique la conexión o la disponibilidad del servicio.";
+        "No se pudo establecer comunicación con la API. Verifique la dirección del servidor, HTTPS o CORS.";
+    } else if (solicitudCancelada) {
+      mensaje = "La solicitud fue cancelada.";
     }
-
-    /* =====================================
-       CONSTRUIR ERROR NORMALIZADO
-    ===================================== */
 
     const errorApi: ErrorApi = {
       mensaje,
       estado,
+      codigo: error.code,
       sinConexion,
       tiempoAgotado,
       errorOriginal: error,
     };
+
+    if (import.meta.env.DEV) {
+      console.error("Error de API:", {
+        ruta: error.config?.url,
+        estado,
+        codigo: error.code,
+        mensaje,
+      });
+    }
 
     return Promise.reject(errorApi);
   },
 );
 
 /* =========================================
-   EXPORTAR INSTANCIA AXIOS
+   MÉTODOS AUXILIARES
+========================================= */
+
+export function obtenerUrlApi(): string {
+  return BASE_URL;
+}
+
+export async function verificarConexionApi(
+  ruta: string,
+): Promise<boolean> {
+  try {
+    const configuracion: AxiosRequestConfig = {
+      timeout: 10000,
+    };
+
+    // Debe utilizarse una ruta GET pública
+    // que exista realmente en el backend.
+    await api.get(ruta, configuracion);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* =========================================
+   EXPORTAR API
 ========================================= */
 
 export default api;
