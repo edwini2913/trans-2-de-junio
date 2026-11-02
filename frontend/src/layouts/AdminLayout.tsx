@@ -1,6 +1,6 @@
-import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode,} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import {NavLink,Outlet,useLocation,useNavigate,} from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import {
   AlertCircle,
@@ -57,6 +57,7 @@ interface OpcionMenu {
   ruta: string;
   icono: ReactNode;
   rutasRelacionadas?: string[];
+  soloAdministrador?: boolean;
 }
 
 const OPCIONES_MENU: OpcionMenu[] = [
@@ -68,7 +69,13 @@ const OPCIONES_MENU: OpcionMenu[] = [
   {
     texto: "Usuarios",
     ruta: "/admin/usuarios",
+    soloAdministrador: true,
     icono: <Users size={21} />,
+  },
+  {
+    texto: "Acceso de choferes",
+    ruta: "/admin/choferes",
+    icono: <ScanLine size={21} />,
   },
   {
     texto: "Vehículos",
@@ -94,12 +101,14 @@ const OPCIONES_MENU: OpcionMenu[] = [
 {
   texto: "Blockchain",
   ruta: "/admin/blockchain",
+  soloAdministrador: true,
   icono: <Blocks size={21} />,
 },
 
 {
   texto: "Auditoría",
   ruta: "/admin/auditoria",
+  soloAdministrador: true,
 icono: <ShieldCheck size={21} />,},
 
 {
@@ -128,7 +137,7 @@ function obtenerUsuario(): UsuarioLocal {
       JSON.parse(usuarioGuardado);
 
     return resultado &&
-      typeof resultado === "object"
+      typeof resultado === "object" && !Array.isArray(resultado)
       ? (resultado as UsuarioLocal)
       : {};
   } catch {
@@ -290,10 +299,18 @@ export default function AdminLayout() {
     [],
   );
 
+  const esAdministrador = usuario.rol?.toUpperCase() === "ADMINISTRADOR";
+  const esSecretaria = usuario.rol?.toUpperCase() === "SECRETARIA";
+
+  const opcionesVisibles = useMemo(
+    () => OPCIONES_MENU.filter((opcion) => esAdministrador || !opcion.soloAdministrador),
+    [esAdministrador],
+  );
+
   const nombreCompleto =
     `${usuario.nombre ?? ""} ${
       usuario.apellido ?? ""
-    }`.trim() || "Administrador";
+    }`.trim() || (esSecretaria ? "Secretaría" : "Administrador");
 
   const inicial =
     nombreCompleto
@@ -329,8 +346,7 @@ export default function AdminLayout() {
 
             contarNotificacionesNoLeidasAdministrador(),
 
-            usuario.rol ===
-            "ADMINISTRADOR"
+            esAdministrador
               ? obtenerTodosLosPagos(
                   "PENDIENTE",
                 )
@@ -360,7 +376,7 @@ export default function AdminLayout() {
           );
         }
       },
-      [usuario.rol],
+      [esAdministrador],
     );
 
   useEffect(() => {
@@ -505,12 +521,14 @@ export default function AdminLayout() {
         false,
       );
 
-      if (
-        notificacion.rutaDestino
-      ) {
-        navigate(
-          notificacion.rutaDestino,
-        );
+      if (notificacion.rutaDestino) {
+        const destino = notificacion.rutaDestino;
+        const interna = destino.startsWith("/") && !destino.startsWith("//");
+        const restringida = !esAdministrador && [
+          "/admin/usuarios", "/admin/blockchain", "/admin/auditoria",
+          "/admin/pagos", "/admin/configuracion",
+        ].some((ruta) => destino === ruta || destino.startsWith(`${ruta}/`));
+        if (interna && !restringida) navigate(destino);
       }
     } catch (error) {
       setErrorNotificaciones(
@@ -634,7 +652,7 @@ export default function AdminLayout() {
             {!menuReducido && (
               <div className="min-w-0">
                 <h1 className="truncate text-lg font-black text-white">
-                  ADMINISTRADOR
+                  {esSecretaria ? "SECRETARÍA" : "ADMINISTRADOR"}
                 </h1>
 
                 <p className="mt-1 text-sm font-medium text-emerald-100">
@@ -652,7 +670,7 @@ export default function AdminLayout() {
             </p>
           )}
 
-          {OPCIONES_MENU.map(
+          {opcionesVisibles.map(
             (opcion) => (
               <OpcionNavegacion
                 key={opcion.ruta}
@@ -664,8 +682,7 @@ export default function AdminLayout() {
 
           <div className="my-5 border-t border-white/15" />
 
-          {usuario.rol ===
-            "ADMINISTRADOR" && (
+          {esAdministrador && (
             <NavLink
               to="/admin/pagos"
               title={
@@ -786,6 +803,7 @@ export default function AdminLayout() {
             )}
           </NavLink>
 
+          {esAdministrador && (
           <NavLink
             to="/admin/configuracion"
             title={
@@ -816,6 +834,7 @@ export default function AdminLayout() {
               </span>
             )}
           </NavLink>
+          )}
         </nav>
 
         <div className="relative z-10 border-t border-white/15 p-4">

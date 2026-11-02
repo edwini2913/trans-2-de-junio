@@ -4,93 +4,67 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 
-import {
-  TicketsService,
-} from './tickets.service';
+import { EscanearTicketsGuard } from '../auth/guards/escanear-tickets.guard';
+import { TicketsService } from './tickets.service';
 
 @Controller('tickets')
 export class TicketsController {
   constructor(
-    private readonly ticketsService:
-      TicketsService,
+    private readonly ticketsService: TicketsService,
   ) {}
 
   /**
-   * Genera un único ticket para una
-   * reserva confirmada.
+   * Genera un único ticket para una reserva confirmada.
    */
   @Post('generar/:reservaId')
   generarTicket(
-    @Param('reservaId')
-    reservaId: string,
+    @Param('reservaId') reservaId: string,
   ) {
-    return this.ticketsService
-      .generarTicket(
-        reservaId,
-      );
+    return this.ticketsService.generarTicket(reservaId);
   }
 
   /**
-   * Obtiene todos los tickets
-   * pertenecientes a un usuario.
+   * Obtiene los tickets pertenecientes a un usuario.
    */
   @Get('usuario/:usuarioId')
   obtenerPorUsuario(
-    @Param('usuarioId')
-    usuarioId: string,
+    @Param('usuarioId') usuarioId: string,
   ) {
-    return this.ticketsService
-      .obtenerPorUsuario(
-        usuarioId,
-      );
+    return this.ticketsService.obtenerPorUsuario(usuarioId);
   }
 
   /**
-   * Obtiene el ticket real generado
-   * para una reserva aprobada.
-   *
-   * GET /tickets/reserva/:reservaId
+   * Obtiene el ticket generado para una reserva aprobada.
    */
   @Get('reserva/:reservaId')
   obtenerPorReserva(
-    @Param('reservaId')
-    reservaId: string,
+    @Param('reservaId') reservaId: string,
   ) {
-    return this.ticketsService
-      .obtenerPorReserva(
-        reservaId,
-      );
+    return this.ticketsService.obtenerPorReserva(reservaId);
   }
 
   /**
-   * Consulta un ticket mediante
-   * el token incluido en su QR.
+   * Consulta el ticket sin marcarlo como utilizado.
    */
   @Get('token/:token')
   obtenerPorToken(
-    @Param('token')
-    token: string,
+    @Param('token') token: string,
   ) {
-    return this.ticketsService
-      .obtenerPorToken(
-        token,
-      );
+    return this.ticketsService.obtenerPorToken(token);
   }
 
   /**
-   * Valida el ticket cuando el
-   * código QR es escaneado.
+   * Autoriza el abordaje y marca el ticket como utilizado.
+   * Requiere una sesión válida y permiso de escaneo.
    */
   @Patch('validar/:token')
+  @UseGuards(EscanearTicketsGuard)
   validarTicket(
-    @Param('token')
-    token: string,
+    @Param('token') token: string,
   ) {
-    return this.ticketsService
-      .validarTicket(
-        token,
-      );
+    return this.ticketsService.validarTicket(token);
   }
 }

@@ -1,13 +1,13 @@
+
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 
-import {
-  InjectRepository,
-} from '@nestjs/typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 import {
   EntityManager,
@@ -15,55 +15,216 @@ import {
   Repository,
 } from 'typeorm';
 
+import * as bcrypt from 'bcrypt';
+
+import { CrearChoferDto } from './dto/crear-chofer.dto';
+
 import {
+  RolUsuario,
   Usuario,
 } from './entities/usuario.entity';
+
+/* =========================================
+   INTERFACES
+========================================= */
 
 type ResultadoCodigoUsuario = {
   codigo: string;
 };
 
+/* =========================================
+   SERVICIO DE USUARIOS
+========================================= */
+
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(Usuario)
-    private readonly usuarioRepository:
-      Repository<Usuario>,
+    private readonly usuarioRepository: Repository<Usuario>,
   ) {}
+
+  /* =====================================
+     1. REGISTRAR CHOFER
+  ===================================== */
+
+  async crearChofer(dto: CrearChoferDto) {
+    const nombre = dto.nombre.trim();
+    const apellido = dto.apellido.trim();
+    const ci = dto.ci.trim();
+    const telefono = dto.telefono.trim();
+    const email = dto.email.trim().toLowerCase();
+
+    if (
+      !nombre ||
+      !apellido ||
+      !ci ||
+      !telefono ||
+      !email ||
+      !dto.password
+    ) {
+      throw new BadRequestException(
+        'Todos los campos del chofer son obligatorios.',
+      );
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException(
+        'El correo electrónico no es válido.',
+      );
+    }
+
+    if (dto.password.length < 8) {
+      throw new BadRequestException(
+        'La contraseña debe tener al menos 8 caracteres.',
+      );
+    }
+
+    if (Buffer.byteLength(dto.password, 'utf8') > 72) {
+      throw new BadRequestException(
+        'La contraseña supera el límite permitido de 72 bytes.',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(
+      dto.password,
+      10,
+    );
+
+    const usuario = await this.crearUsuario({
+      nombre,
+      apellido,
+      ci,
+      telefono,
+      email,
+      password: passwordHash,
+      rol: RolUsuario.CHOFER,
+      estado: true,
+      puedeEscanearTickets:
+        dto.puedeEscanearTickets === true,
+    });
+
+    return {
+      ok: true,
+      mensaje: 'Cuenta de chofer creada correctamente.',
+      usuario: {
+        id: usuario.id,
+        codigoUsuario: usuario.codigoUsuario,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        ci: usuario.ci,
+        telefono: usuario.telefono,
+        email: usuario.email,
+        rol: usuario.rol,
+        estado: usuario.estado,
+        puedeEscanearTickets:
+          usuario.puedeEscanearTickets,
+      },
+    };
+  }
+
+  /* =====================================
+     2. AUTORIZAR O RETIRAR ESCANEO QR
+  ===================================== */
+
+  async actualizarPermisoEscaneo(
+    usuarioId: string,
+    puedeEscanearTickets: boolean,
+  ) {
+    if (typeof puedeEscanearTickets !== 'boolean') {
+      throw new BadRequestException(
+        'El permiso de escaneo debe ser true o false.',
+      );
+    }
+
+    const usuario = await this.usuarioRepository.findOne({
+      where: {
+        id: usuarioId,
+      },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException(
+        'El usuario no existe.',
+      );
+    }
+
+    if (usuario.rol !== RolUsuario.CHOFER) {
+      throw new BadRequestException(
+        'Este permiso solo se puede modificar para choferes.',
+      );
+    }
+
+    if (puedeEscanearTickets && !usuario.estado) {
+      throw new BadRequestException(
+        'No se puede habilitar el escaneo de una cuenta desactivada.',
+      );
+    }
+
+    const resultado = await this.usuarioRepository.update(
+      {
+        id: usuarioId,
+        rol: RolUsuario.CHOFER,
+        estado: usuario.estado,
+      },
+      {
+        puedeEscanearTickets,
+        fechaActualizacion: new Date(),
+      },
+    );
+
+    if (resultado.affected !== 1) {
+      throw new ConflictException(
+        'La cuenta cambió durante la actualización. Intente nuevamente.',
+      );
+    }
+
+    return {
+      ok: true,
+      mensaje: puedeEscanearTickets
+        ? 'Escaneo habilitado para el chofer.'
+        : 'Escaneo deshabilitado para el chofer.',
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        rol: usuario.rol,
+        puedeEscanearTickets,
+      },
+    };
+  }
+
+  /* =====================================
+     3. CREAR USUARIO EN POSTGRESQL
+  ===================================== */
 
   async crearUsuario(
     datos: Partial<Usuario>,
   ): Promise<Usuario> {
-    const emailNormalizado =
-      datos.email
-        ?.trim()
-        .toLowerCase();
+    const emailNormalizado = datos.email
+      ?.trim()
+      .toLowerCase();
 
     if (!emailNormalizado) {
-      throw new InternalServerErrorException(
+      throw new BadRequestException(
         'El correo electrónico es obligatorio.',
       );
     }
 
     try {
       return await this.usuarioRepository.manager.transaction(
-        async (
-          manager: EntityManager,
-        ) => {
-          const resultado =
-            (await manager.query(`
-              SELECT
-                'E-' || LPAD(
-                  nextval(
-                    'sistema.usuario_codigo_seq'
-                  )::TEXT,
-                  3,
-                  '0'
-                ) AS codigo
-            `)) as ResultadoCodigoUsuario[];
+        async (manager: EntityManager) => {
+          const resultado = (await manager.query(`
+            SELECT
+              'E-' || LPAD(
+                nextval(
+                  'sistema.usuario_codigo_seq'
+                )::TEXT,
+                3,
+                '0'
+              ) AS codigo
+          `)) as ResultadoCodigoUsuario[];
 
-          const codigoUsuario =
-            resultado[0]?.codigo;
+          const codigoUsuario = resultado[0]?.codigo;
 
           if (!codigoUsuario) {
             throw new InternalServerErrorException(
@@ -71,18 +232,11 @@ export class UsersService {
             );
           }
 
-          const usuario =
-            manager.create(
-              Usuario,
-              {
-                ...datos,
-
-                email:
-                  emailNormalizado,
-
-                codigoUsuario,
-              },
-            );
+          const usuario = manager.create(Usuario, {
+            ...datos,
+            email: emailNormalizado,
+            codigoUsuario,
+          });
 
           return await manager.save(
             Usuario,
@@ -91,82 +245,53 @@ export class UsersService {
         },
       );
     } catch (error: unknown) {
-      if (
-        error instanceof QueryFailedError
-      ) {
-        const errorPostgres =
-          error.driverError as {
-            code?: string;
-            constraint?: string;
-            detail?: string;
-            message?: string;
-          };
+      if (error instanceof QueryFailedError) {
+        const errorPostgres = error.driverError as {
+          code?: string;
+          constraint?: string;
+          detail?: string;
+          message?: string;
+        };
 
-        /*
-         * PostgreSQL:
-         * 23505 = dato duplicado.
-         */
-        if (
-          errorPostgres.code ===
-          '23505'
-        ) {
-          const detalle =
-            (
-              errorPostgres.detail ||
-              errorPostgres.message ||
-              ''
-            ).toLowerCase();
+        if (errorPostgres.code === '23505') {
+          const detalle = [
+            errorPostgres.constraint,
+            errorPostgres.detail,
+            errorPostgres.message,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
 
-          if (
-            detalle.includes(
-              'email',
-            )
-          ) {
+          if (detalle.includes('email')) {
             throw new ConflictException(
               'El correo electrónico ya está registrado.',
             );
           }
 
-          if (
-            detalle.includes(
-              'ci',
-            )
-          ) {
+          if (detalle.includes('ci')) {
             throw new ConflictException(
               'El carnet de identidad ya está registrado.',
             );
           }
 
-          if (
-            detalle.includes(
-              'codigo',
-            )
-          ) {
+          if (detalle.includes('codigo')) {
             throw new ConflictException(
-              'No se pudo generar un código de usuario único. Intente nuevamente.',
+              'El código de usuario ya existe. Intente nuevamente.',
             );
           }
 
           throw new ConflictException(
-            'Ya existe un usuario con alguno de los datos ingresados.',
+            'Ya existe un usuario con los datos ingresados.',
           );
         }
 
-        /*
-         * PostgreSQL:
-         * 42P01 = tabla o secuencia inexistente.
-         */
         if (
-          errorPostgres.code ===
-          '42P01'
+          errorPostgres.code === '42P01' ||
+          errorPostgres.code === '3F000'
         ) {
-          console.error(
-            'No existe la secuencia sistema.usuario_codigo_seq.',
-            errorPostgres,
-          );
-
           throw new InternalServerErrorException(
-            'No se pudo generar el código del usuario. La secuencia de usuarios no está configurada.',
+            'No se encuentra configurada la secuencia de usuarios en PostgreSQL.',
           );
         }
 
@@ -174,71 +299,68 @@ export class UsersService {
           'Error PostgreSQL al crear usuario:',
           errorPostgres,
         );
-      } else {
-        console.error(
-          'Error al crear usuario:',
-          error,
-        );
       }
 
       throw error;
     }
   }
 
+  /* =====================================
+     4. BUSCAR USUARIO POR CORREO
+  ===================================== */
+
   async buscarPorEmail(
     email: string,
   ): Promise<Usuario | null> {
-    const emailNormalizado =
-      email
-        .trim()
-        .toLowerCase();
+    const emailNormalizado = email
+      .trim()
+      .toLowerCase();
 
     if (!emailNormalizado) {
       return null;
     }
 
     return this.usuarioRepository
-      .createQueryBuilder(
-        'usuario',
-      )
+      .createQueryBuilder('usuario')
       .where(
         'LOWER(usuario.email) = :email',
         {
-          email:
-            emailNormalizado,
+          email: emailNormalizado,
         },
       )
       .getOne();
   }
+
+  /* =====================================
+     5. BUSCAR USUARIO CON CONTRASEÑA
+  ===================================== */
 
   async buscarPorEmailConPassword(
     email: string,
   ): Promise<Usuario | null> {
-    const emailNormalizado =
-      email
-        .trim()
-        .toLowerCase();
+    const emailNormalizado = email
+      .trim()
+      .toLowerCase();
 
     if (!emailNormalizado) {
       return null;
     }
 
     return this.usuarioRepository
-      .createQueryBuilder(
-        'usuario',
-      )
-      .addSelect(
-        'usuario.password',
-      )
+      .createQueryBuilder('usuario')
+      .addSelect('usuario.password')
       .where(
         'LOWER(usuario.email) = :email',
         {
-          email:
-            emailNormalizado,
+          email: emailNormalizado,
         },
       )
       .getOne();
   }
+
+  /* =====================================
+     6. BUSCAR USUARIO POR ID
+  ===================================== */
 
   async buscarPorId(
     id: string,
@@ -250,51 +372,65 @@ export class UsersService {
     });
   }
 
-  async obtenerTodos():
-  Promise<Usuario[]> {
-    return this.usuarioRepository.find({
+  /* =====================================
+     7. LISTAR TODOS LOS USUARIOS
+  ===================================== */
+
+  async obtenerTodos(): Promise<
+    Omit<
+      Usuario,
+      | 'password'
+      | 'tokenRecuperacionPassword'
+      | 'tokenRecuperacionExpira'
+    >[]
+  > {
+    const usuarios = await this.usuarioRepository.find({
       order: {
-        fechaRegistro:
-          'DESC',
+        fechaRegistro: 'DESC',
       },
+    });
+
+    return usuarios.map((usuario) => {
+      const {
+        password: _password,
+        tokenRecuperacionPassword: _token,
+        tokenRecuperacionExpira: _expiracion,
+        ...datosPublicos
+      } = usuario;
+
+      void _password;
+      void _token;
+      void _expiracion;
+
+      return datosPublicos;
     });
   }
 
-  /*
-   * Guarda el hash del token y la fecha
-   * de expiración en el usuario.
-   */
+  /* =====================================
+     8. GUARDAR TOKEN DE RECUPERACIÓN
+  ===================================== */
+
   async guardarTokenRecuperacion(
     usuarioId: string,
     tokenHash: string,
     fechaExpiracion: Date,
   ): Promise<void> {
-    if (
-      !usuarioId.trim() ||
-      !tokenHash.trim()
-    ) {
-      throw new InternalServerErrorException(
+    if (!usuarioId.trim() || !tokenHash.trim()) {
+      throw new BadRequestException(
         'Los datos del token de recuperación no son válidos.',
       );
     }
 
-    const resultado =
-      await this.usuarioRepository.update(
-        {
-          id:
-            usuarioId,
-        },
-        {
-          tokenRecuperacionPassword:
-            tokenHash,
-
-          tokenRecuperacionExpira:
-            fechaExpiracion,
-
-          fechaActualizacion:
-            new Date(),
-        },
-      );
+    const resultado = await this.usuarioRepository.update(
+      {
+        id: usuarioId,
+      },
+      {
+        tokenRecuperacionPassword: tokenHash,
+        tokenRecuperacionExpira: fechaExpiracion,
+        fechaActualizacion: new Date(),
+      },
+    );
 
     if (!resultado.affected) {
       throw new NotFoundException(
@@ -303,26 +439,21 @@ export class UsersService {
     }
   }
 
-  /*
-   * Busca solamente tokens que:
-   * - Coincidan con el hash guardado.
-   * - No hayan expirado.
-   * - Pertenezcan a un usuario activo.
-   */
+  /* =====================================
+     9. BUSCAR TOKEN DE RECUPERACIÓN
+  ===================================== */
+
   async buscarPorTokenRecuperacion(
     tokenHash: string,
   ): Promise<Usuario | null> {
-    const tokenNormalizado =
-      tokenHash.trim();
+    const tokenNormalizado = tokenHash.trim();
 
     if (!tokenNormalizado) {
       return null;
     }
 
     return this.usuarioRepository
-      .createQueryBuilder(
-        'usuario',
-      )
+      .createQueryBuilder('usuario')
       .addSelect([
         'usuario.tokenRecuperacionPassword',
         'usuario.tokenRecuperacionExpira',
@@ -330,8 +461,7 @@ export class UsersService {
       .where(
         'usuario.tokenRecuperacionPassword = :tokenHash',
         {
-          tokenHash:
-            tokenNormalizado,
+          tokenHash: tokenNormalizado,
         },
       )
       .andWhere(
@@ -340,56 +470,44 @@ export class UsersService {
       .andWhere(
         'usuario.tokenRecuperacionExpira > :fechaActual',
         {
-          fechaActual:
-            new Date(),
+          fechaActual: new Date(),
         },
       )
       .andWhere(
         'usuario.estado = :estado',
         {
-          estado:
-            true,
+          estado: true,
         },
       )
       .getOne();
   }
 
-  /*
-   * Cambia la contraseña y elimina el
-   * token dentro de una sola consulta.
-   * Después de esto, el enlace no puede
-   * utilizarse nuevamente.
-   */
+  /* =====================================
+     10. ACTUALIZAR CONTRASEÑA
+         Y ELIMINAR TOKEN
+  ===================================== */
+
   async actualizarPasswordYLimpiarToken(
     usuarioId: string,
     passwordHash: string,
   ): Promise<void> {
     if (!passwordHash.trim()) {
-      throw new InternalServerErrorException(
+      throw new BadRequestException(
         'La contraseña cifrada no es válida.',
       );
     }
 
-    const resultado =
-      await this.usuarioRepository.update(
-        {
-          id:
-            usuarioId,
-        },
-        {
-          password:
-            passwordHash,
-
-          tokenRecuperacionPassword:
-            null,
-
-          tokenRecuperacionExpira:
-            null,
-
-          fechaActualizacion:
-            new Date(),
-        },
-      );
+    const resultado = await this.usuarioRepository.update(
+      {
+        id: usuarioId,
+      },
+      {
+        password: passwordHash,
+        tokenRecuperacionPassword: null,
+        tokenRecuperacionExpira: null,
+        fechaActualizacion: new Date(),
+      },
+    );
 
     if (!resultado.affected) {
       throw new NotFoundException(
@@ -398,30 +516,23 @@ export class UsersService {
     }
   }
 
-  /*
-   * Elimina un token cuando el correo
-   * no pudo enviarse.
-   */
+  /* =====================================
+     11. LIMPIAR TOKEN DE RECUPERACIÓN
+  ===================================== */
+
   async limpiarTokenRecuperacion(
     usuarioId: string,
   ): Promise<void> {
-    const resultado =
-      await this.usuarioRepository.update(
-        {
-          id:
-            usuarioId,
-        },
-        {
-          tokenRecuperacionPassword:
-            null,
-
-          tokenRecuperacionExpira:
-            null,
-
-          fechaActualizacion:
-            new Date(),
-        },
-      );
+    const resultado = await this.usuarioRepository.update(
+      {
+        id: usuarioId,
+      },
+      {
+        tokenRecuperacionPassword: null,
+        tokenRecuperacionExpira: null,
+        fechaActualizacion: new Date(),
+      },
+    );
 
     if (!resultado.affected) {
       throw new NotFoundException(
@@ -430,17 +541,18 @@ export class UsersService {
     }
   }
 
+  /* =====================================
+     12. ELIMINAR USUARIO
+  ===================================== */
+
   async eliminarUsuario(
     id: string,
-  ): Promise<{
-    mensaje: string;
-  }> {
-    const usuario =
-      await this.usuarioRepository.findOne({
-        where: {
-          id,
-        },
-      });
+  ): Promise<{ mensaje: string }> {
+    const usuario = await this.usuarioRepository.findOne({
+      where: {
+        id,
+      },
+    });
 
     if (!usuario) {
       throw new NotFoundException(
@@ -448,13 +560,10 @@ export class UsersService {
       );
     }
 
-    await this.usuarioRepository.remove(
-      usuario,
-    );
+    await this.usuarioRepository.remove(usuario);
 
     return {
-      mensaje:
-        'Usuario eliminado correctamente.',
+      mensaje: 'Usuario eliminado correctamente.',
     };
   }
 }

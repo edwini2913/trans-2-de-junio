@@ -1,3 +1,4 @@
+
 import {
   lazy,
   Suspense,
@@ -16,7 +17,56 @@ import PageLoader from "./components/loaders/PageLoader";
 import EstadoConexion from "./components/pwa/EstadoConexion";
 import InstalarPWA from "./components/pwa/InstalarPWA";
 
-/* PÁGINAS PÚBLICAS */
+/* =========================================
+   ROLES DEL SISTEMA
+========================================= */
+
+type RolUsuario =
+  | "ADMINISTRADOR"
+  | "SECRETARIA"
+  | "CHOFER"
+  | "PASAJERO";
+
+/* =========================================
+   PERMISOS DEL PANEL ADMINISTRATIVO
+========================================= */
+
+const ROLES_ADMIN: RolUsuario[] = [
+  "ADMINISTRADOR",
+  "SECRETARIA",
+];
+
+/* =========================================
+   PERMISOS DEL ESCÁNER QR
+
+   ADMINISTRADOR: acceso completo
+   CHOFER: requiere autorización del backend
+========================================= */
+
+const ROLES_ESCANER: RolUsuario[] = [
+  "ADMINISTRADOR",
+  "CHOFER",
+];
+
+/* =========================================
+   ACCESO EXCLUSIVO DEL ADMINISTRADOR
+========================================= */
+
+const SOLO_ADMIN: RolUsuario[] = [
+  "ADMINISTRADOR",
+];
+
+/* =========================================
+   ACCESO EXCLUSIVO DEL PASAJERO
+========================================= */
+
+const SOLO_PASAJERO: RolUsuario[] = [
+  "PASAJERO",
+];
+
+/* =========================================
+   PÁGINAS PÚBLICAS
+========================================= */
 
 const Home = lazy(
   () => import("./pages/Home"),
@@ -31,174 +81,119 @@ const Register = lazy(
 );
 
 const RecuperarPassword = lazy(
-  () =>
-    import(
-      "./pages/auth/RecuperarPassword"
-    ),
+  () => import("./pages/auth/RecuperarPassword"),
 );
 
 const RestablecerPassword = lazy(
-  () =>
-    import(
-      "./pages/auth/RestablecerPassword"
-    ),
+  () => import("./pages/auth/RestablecerPassword"),
 );
 
-/* PÁGINAS DEL PASAJERO */
+/* =========================================
+   PÁGINAS DEL PASAJERO
+========================================= */
 
 const DashboardPasajero = lazy(
-  () =>
-    import(
-      "./pages/pasajero/Dashboard"
-    ),
+  () => import("./pages/pasajero/Dashboard"),
 );
 
 const BuscarViajes = lazy(
-  () =>
-    import(
-      "./pages/pasajero/BuscarViajes"
-    ),
+  () => import("./pages/pasajero/BuscarViajes"),
 );
 
 const ComprarPasaje = lazy(
-  () =>
-    import(
-      "./pages/pasajero/ComprarPasaje"
-    ),
+  () => import("./pages/pasajero/ComprarPasaje"),
 );
 
 const ComprarReservar = lazy(
-  () =>
-    import(
-      "./pages/pasajero/ComprarReservar"
-    ),
+  () => import("./pages/pasajero/ComprarReservar"),
 );
 
 const MisReservas = lazy(
-  () =>
-    import(
-      "./pages/pasajero/MisReservas"
-    ),
+  () => import("./pages/pasajero/MisReservas"),
 );
 
 const MisReclamos = lazy(
-  () =>
-    import(
-      "./pages/usuario/MisReclamos"
-    ),
+  () => import("./pages/usuario/MisReclamos"),
 );
 
-/* ESCÁNER DE TICKETS */
+/* =========================================
+   ESCÁNER DE TICKETS QR
+========================================= */
 
 const EscanearTicket = lazy(
-  () =>
-    import(
-      "./pages/chofer/EscanearTicket"
-    ),
+  () => import("./pages/chofer/EscanearTicket"),
 );
 
-/* PANEL ADMINISTRATIVO */
+/* =========================================
+   PANEL ADMINISTRATIVO
+========================================= */
 
 const AdminLayout = lazy(
-  () =>
-    import(
-      "./layouts/AdminLayout"
-    ),
+  () => import("./layouts/AdminLayout"),
 );
 
 const DashboardAdmin = lazy(
-  () =>
-    import(
-      "./pages/admin/Dashboard"
-    ),
+  () => import("./pages/admin/Dashboard"),
 );
 
 const Usuarios = lazy(
-  () =>
-    import(
-      "./pages/admin/Usuarios"
-    ),
+  () => import("./pages/admin/Usuarios"),
+);
+
+const Choferes = lazy(
+  () => import("./pages/admin/Choferes"),
 );
 
 const Vehiculos = lazy(
-  () =>
-    import(
-      "./pages/admin/Vehiculos"
-    ),
+  () => import("./pages/admin/Vehiculos"),
 );
 
 const VentaOficina = lazy(
-  () =>
-    import(
-      "./pages/admin/VentaOficina"
-    ),
+  () => import("./pages/admin/VentaOficina"),
 );
 
 const SalidasRapidas = lazy(
-  () =>
-    import(
-      "./pages/admin/SalidasRapidas"
-    ),
+  () => import("./pages/admin/SalidasRapidas"),
 );
 
 const Pagos = lazy(
-  () =>
-    import(
-      "./pages/admin/Pagos"
-    ),
+  () => import("./pages/admin/Pagos"),
 );
 
 const Reportes = lazy(
-  () =>
-    import(
-      "./pages/admin/Reportes"
-    ),
+  () => import("./pages/admin/Reportes"),
 );
 
 const Blockchain = lazy(
-  () =>
-    import(
-      "./pages/admin/Blockchain"
-    ),
+  () => import("./pages/admin/Blockchain"),
 );
 
 const Auditoria = lazy(
-  () =>
-    import(
-      "./pages/admin/Auditoria"
-    ),
+  () => import("./pages/admin/Auditoria"),
 );
 
 const Reclamos = lazy(
-  () =>
-    import(
-      "./pages/admin/Reclamos"
-    ),
+  () => import("./pages/admin/Reclamos"),
 );
 
 const ViajesRutas = lazy(
-  () =>
-    import(
-      "./pages/admin/ViajesRutas"
-    ),
+  () => import("./pages/admin/ViajesRutas"),
 );
 
 const RutasPage = lazy(
-  () =>
-    import(
-      "./pages/admin/rutas/RutasPage"
-    ),
+  () => import("./pages/admin/rutas/RutasPage"),
 );
 
 const Configuracion = lazy(
-  () =>
-    import(
-      "./pages/admin/Configuracion"
-    ),
+  () => import("./pages/admin/Configuracion"),
 );
 
+/* =========================================
+   COMPONENTE DE PROTECCIÓN DE RUTAS
+========================================= */
+
 interface RutaConProteccionProps {
-  rolesPermitidos: string[];
+  rolesPermitidos: RolUsuario[];
   children: ReactNode;
 }
 
@@ -208,22 +203,25 @@ function RutaConProteccion({
 }: RutaConProteccionProps) {
   return (
     <RutaProtegida
-      rolesPermitidos={
-        rolesPermitidos
-      }
+      rolesPermitidos={rolesPermitidos}
     >
       {children}
     </RutaProtegida>
   );
 }
 
+/* =========================================
+   RUTAS DE LA APLICACIÓN
+========================================= */
+
 function RutasAplicacion() {
   return (
-    <Suspense
-      fallback={<PageLoader />}
-    >
+    <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* PÁGINAS PÚBLICAS */}
+
+        {/* =================================
+            PÁGINAS PÚBLICAS
+        ================================= */}
 
         <Route
           path="/"
@@ -242,27 +240,23 @@ function RutasAplicacion() {
 
         <Route
           path="/recuperar-password"
-          element={
-            <RecuperarPassword />
-          }
+          element={<RecuperarPassword />}
         />
 
         <Route
           path="/restablecer-password"
-          element={
-            <RestablecerPassword />
-          }
+          element={<RestablecerPassword />}
         />
 
-        {/* RUTAS DEL PASAJERO */}
+        {/* =================================
+            PANEL DEL PASAJERO
+        ================================= */}
 
         <Route
           path="/pasajero"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "PASAJERO",
-              ]}
+              rolesPermitidos={SOLO_PASAJERO}
             >
               <DashboardPasajero />
             </RutaConProteccion>
@@ -273,9 +267,7 @@ function RutasAplicacion() {
           path="/pasajero/buscar-viajes"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "PASAJERO",
-              ]}
+              rolesPermitidos={SOLO_PASAJERO}
             >
               <BuscarViajes />
             </RutaConProteccion>
@@ -286,9 +278,7 @@ function RutasAplicacion() {
           path="/pasajero/comprar"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "PASAJERO",
-              ]}
+              rolesPermitidos={SOLO_PASAJERO}
             >
               <ComprarPasaje />
             </RutaConProteccion>
@@ -299,9 +289,7 @@ function RutasAplicacion() {
           path="/pasajero/comprar-reservar"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "PASAJERO",
-              ]}
+              rolesPermitidos={SOLO_PASAJERO}
             >
               <ComprarReservar />
             </RutaConProteccion>
@@ -312,9 +300,7 @@ function RutasAplicacion() {
           path="/pasajero/mis-reservas"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "PASAJERO",
-              ]}
+              rolesPermitidos={SOLO_PASAJERO}
             >
               <MisReservas />
             </RutaConProteccion>
@@ -325,85 +311,114 @@ function RutasAplicacion() {
           path="/pasajero/mis-reclamos"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "PASAJERO",
-              ]}
+              rolesPermitidos={SOLO_PASAJERO}
             >
               <MisReclamos />
             </RutaConProteccion>
           }
         />
 
-        {/* ESCÁNER DE TICKETS */}
+        {/* =================================
+            ESCÁNER DE TICKETS QR
+
+            ADMINISTRADOR Y CHOFER
+        ================================= */}
 
         <Route
           path="/chofer/escanear-ticket"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "ADMINISTRADOR",
-                "SECRETARIA",
-                "CHOFER",
-              ]}
+              rolesPermitidos={ROLES_ESCANER}
             >
               <EscanearTicket />
             </RutaConProteccion>
           }
         />
 
-        {/* PANEL ADMINISTRATIVO */}
+        {/* =================================
+            PANEL ADMINISTRATIVO
+        ================================= */}
 
         <Route
           path="/admin"
           element={
             <RutaConProteccion
-              rolesPermitidos={[
-                "ADMINISTRADOR",
-                "SECRETARIA",
-              ]}
+              rolesPermitidos={ROLES_ADMIN}
             >
               <AdminLayout />
             </RutaConProteccion>
           }
         >
+
+          {/* DASHBOARD */}
+
           <Route
             index
-            element={
-              <DashboardAdmin />
-            }
+            element={<DashboardAdmin />}
           />
+
+          {/* USUARIOS: SOLO ADMINISTRADOR */}
 
           <Route
             path="usuarios"
-            element={<Usuarios />}
+            element={
+              <RutaConProteccion
+                rolesPermitidos={SOLO_ADMIN}
+              >
+                <Usuarios />
+              </RutaConProteccion>
+            }
           />
+
+          {/* =================================
+              GESTIÓN DE CHOFERES
+
+              SOLO ADMINISTRADOR
+          ================================= */}
+
+          <Route
+            path="choferes"
+            element={
+              <RutaConProteccion
+                rolesPermitidos={SOLO_ADMIN}
+              >
+                <Choferes />
+              </RutaConProteccion>
+            }
+          />
+
+          {/* VEHÍCULOS */}
 
           <Route
             path="vehiculos"
             element={<Vehiculos />}
           />
 
+          {/* VENTA EN OFICINA */}
+
           <Route
             path="venta-oficina"
-            element={
-              <VentaOficina />
-            }
+            element={<VentaOficina />}
           />
+
+          {/* SALIDAS RÁPIDAS */}
 
           <Route
             path="salidas-rapidas"
-            element={
-              <SalidasRapidas />
-            }
+            element={<SalidasRapidas />}
           />
+
+          {/* =================================
+              PAGOS QR
+
+              SOLO ADMINISTRADOR
+          ================================= */}
 
           <Route
             path="pagos"
             element={
               <RutaConProteccion
-                rolesPermitidos={[
-                  "ADMINISTRADOR",
-                ]}
+                rolesPermitidos={SOLO_ADMIN}
               >
                 <Pagos />
               </RutaConProteccion>
@@ -414,82 +429,84 @@ function RutasAplicacion() {
             path="pagos/:pagoId"
             element={
               <RutaConProteccion
-                rolesPermitidos={[
-                  "ADMINISTRADOR",
-                ]}
+                rolesPermitidos={SOLO_ADMIN}
               >
                 <Pagos />
               </RutaConProteccion>
             }
           />
 
+          {/* REPORTES */}
+
           <Route
             path="reportes"
-            element={
-              <Reportes />
-            }
+            element={<Reportes />}
           />
+
+          {/* BLOCKCHAIN */}
 
           <Route
             path="blockchain"
             element={
-              <Blockchain />
+              <RutaConProteccion
+                rolesPermitidos={SOLO_ADMIN}
+              >
+                <Blockchain />
+              </RutaConProteccion>
             }
           />
+
+          {/* AUDITORÍA */}
 
           <Route
             path="auditoria"
             element={
               <RutaConProteccion
-                rolesPermitidos={[
-                  "ADMINISTRADOR",
-                ]}
+                rolesPermitidos={SOLO_ADMIN}
               >
                 <Auditoria />
               </RutaConProteccion>
             }
           />
 
+          {/* RECLAMOS */}
+
           <Route
             path="reclamos"
-            element={
-              <Reclamos />
-            }
+            element={<Reclamos />}
           />
 
           <Route
             path="reclamos/:reclamoId"
-            element={
-              <Reclamos />
-            }
+            element={<Reclamos />}
           />
+
+          {/* VIAJES Y RUTAS */}
 
           <Route
             path="viajes-rutas"
-            element={
-              <ViajesRutas />
-            }
+            element={<ViajesRutas />}
           />
 
           <Route
             path="viajes-rutas/rutas"
-            element={
-              <RutasPage />
-            }
+            element={<RutasPage />}
           />
+
+          {/* CONFIGURACIÓN */}
 
           <Route
             path="configuracion"
             element={
               <RutaConProteccion
-                rolesPermitidos={[
-                  "ADMINISTRADOR",
-                ]}
+                rolesPermitidos={SOLO_ADMIN}
               >
                 <Configuracion />
               </RutaConProteccion>
             }
           />
+
+          {/* REDIRECCIÓN DE VIAJES */}
 
           <Route
             path="crear-viaje"
@@ -500,6 +517,8 @@ function RutasAplicacion() {
               />
             }
           />
+
+          {/* RUTA ADMIN DESCONOCIDA */}
 
           <Route
             path="*"
@@ -512,7 +531,9 @@ function RutasAplicacion() {
           />
         </Route>
 
-        {/* RUTA GENERAL DESCONOCIDA */}
+        {/* =================================
+            RUTA GENERAL DESCONOCIDA
+        ================================= */}
 
         <Route
           path="*"
@@ -528,11 +549,17 @@ function RutasAplicacion() {
   );
 }
 
+/* =========================================
+   COMPONENTE PRINCIPAL
+========================================= */
+
 function App() {
   return (
     <BrowserRouter>
       <RutasAplicacion />
+
       <EstadoConexion />
+
       <InstalarPWA />
     </BrowserRouter>
   );

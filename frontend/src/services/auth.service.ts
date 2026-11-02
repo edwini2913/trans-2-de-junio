@@ -8,7 +8,11 @@ export type LoginResponse = {
     nombre: string;
     apellido: string;
     email: string;
-    rol: "ADMINISTRADOR" | "PASAJERO";
+    rol:
+      | "ADMINISTRADOR"
+      | "SECRETARIA"
+      | "CHOFER"
+      | "PASAJERO";
   };
 };
 

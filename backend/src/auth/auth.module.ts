@@ -1,3 +1,4 @@
+
 import {
   Module,
 } from '@nestjs/common';
@@ -10,6 +11,10 @@ import {
 import {
   JwtModule,
 } from '@nestjs/jwt';
+
+import {
+  PassportModule,
+} from '@nestjs/passport';
 
 import {
   AuditoriaModule,
@@ -31,13 +36,35 @@ import {
   CorreoService,
 } from './correo.service';
 
+import {
+  JwtStrategy,
+} from './jwt.strategy';
+
+/* =========================================
+   MÓDULO DE AUTENTICACIÓN
+========================================= */
+
 @Module({
   imports: [
+    /* CONFIGURACIÓN */
+
     ConfigModule,
+
+    /* USUARIOS */
 
     UsersModule,
 
+    /* AUDITORÍA */
+
     AuditoriaModule,
+
+    /* PASSPORT JWT */
+
+    PassportModule.register({
+      defaultStrategy: 'jwt',
+    }),
+
+    /* CONFIGURACIÓN JWT */
 
     JwtModule.registerAsync({
       imports: [
@@ -49,45 +76,58 @@ import {
       ],
 
       useFactory: (
-        configService:
-          ConfigService,
+        configService: ConfigService,
       ) => {
         const jwtSecret =
           configService.get<string>(
             'JWT_SECRET',
           );
 
-        if (!jwtSecret) {
+        if (!jwtSecret?.trim()) {
           throw new Error(
             'La variable JWT_SECRET no está configurada.',
           );
         }
 
         return {
-          secret:
-            jwtSecret,
+          secret: jwtSecret,
 
           signOptions: {
-            expiresIn:
-              '1d',
+            expiresIn: '1d',
+            algorithm: 'HS256' as const,
           },
         };
       },
     }),
   ],
 
+  /* =====================================
+     CONTROLADORES
+  ===================================== */
+
   controllers: [
     AuthController,
   ],
 
+  /* =====================================
+     SERVICIOS Y ESTRATEGIAS
+  ===================================== */
+
   providers: [
     AuthService,
     CorreoService,
+    JwtStrategy,
   ],
+
+  /* =====================================
+     EXPORTACIONES
+  ===================================== */
 
   exports: [
     AuthService,
     CorreoService,
+    JwtModule,
+    PassportModule,
   ],
 })
 export class AuthModule {}

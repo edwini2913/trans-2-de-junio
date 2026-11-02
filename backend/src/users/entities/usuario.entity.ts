@@ -112,6 +112,18 @@ export class Usuario {
   })
   estado!: boolean;
 
+  /*
+   * Permiso de escaneo de boletos.
+   * Es independiente del estado de la cuenta.
+   * Por defecto permanece deshabilitado.
+   */
+  @Column({
+    name: 'puede_escanear_tickets',
+    type: 'boolean',
+    default: false,
+  })
+  puedeEscanearTickets!: boolean;
+
   @Column({
     name: 'fecha_registro',
     type: 'timestamp',

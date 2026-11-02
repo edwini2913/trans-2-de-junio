@@ -1,5 +1,7 @@
-import { useState } from "react";
+
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
 import {
   ArrowLeft,
   CheckCircle2,
@@ -15,26 +17,113 @@ import {
 import fondo from "../../assets/fondo.jpg";
 import logo from "../../assets/logo.png";
 import noah from "../../assets/noah.jpeg";
+
 import { login } from "../../services/auth.service";
+
+/* =========================================
+   ROLES Y DESTINOS
+========================================= */
+
+const destinos: Record<string, string> = {
+  ADMINISTRADOR: "/admin",
+  SECRETARIA: "/admin",
+  CHOFER: "/chofer/escanear-ticket",
+  PASAJERO: "/pasajero",
+};
+
+/* =========================================
+   MANEJO DE ERRORES
+========================================= */
+
+function obtenerMensajeError(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null
+  ) {
+    const datos = error as {
+      mensaje?: unknown;
+      message?: unknown;
+      response?: {
+        status?: number;
+        data?: {
+          message?: string | string[];
+          mensaje?: string;
+        };
+      };
+    };
+
+    if (typeof datos.mensaje === "string") {
+      return datos.mensaje;
+    }
+
+    const respuesta = datos.response?.data;
+
+    if (Array.isArray(respuesta?.message)) {
+      return respuesta.message.join(". ");
+    }
+
+    if (typeof respuesta?.message === "string") {
+      return respuesta.message;
+    }
+
+    if (typeof respuesta?.mensaje === "string") {
+      return respuesta.mensaje;
+    }
+
+    if (datos.response?.status === 401) {
+      return "Correo electrónico o contraseña incorrectos.";
+    }
+
+    if (typeof datos.message === "string") {
+      return datos.message;
+    }
+  }
+
+  return "No se pudo iniciar sesión. Intente nuevamente.";
+}
+
+/* =========================================
+   COMPONENTE LOGIN
+========================================= */
 
 function Login() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [mostrarPassword, setMostrarPassword] =
     useState(false);
+
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
 
+  const correoValido =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      email.trim(),
+    );
+
+  /* =====================================
+     INICIAR SESIÓN
+  ===================================== */
+
   const iniciarSesion = async (
-    event: React.FormEvent<HTMLFormElement>,
+    event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
 
-    if (!email.trim() || !password.trim()) {
+    if (cargando) return;
+
+    if (!email.trim() || !password) {
       setMensaje(
         "Complete el correo electrónico y la contraseña.",
+      );
+      return;
+    }
+
+    if (!correoValido) {
+      setMensaje(
+        "Ingrese un correo electrónico válido.",
       );
       return;
     }
@@ -48,6 +137,24 @@ function Login() {
         password,
       );
 
+      const rol = data.usuario?.rol?.toUpperCase();
+      const destino = rol ? destinos[rol] : undefined;
+
+      if (
+        !destino ||
+        !data.access_token ||
+        !data.usuario?.id
+      ) {
+        setMensaje(
+          "No se pudo iniciar sesión: datos del usuario no válidos.",
+        );
+        return;
+      }
+
+      /* Guardar nueva sesión */
+
+      localStorage.removeItem("access_token");
+
       localStorage.setItem(
         "token",
         data.access_token,
@@ -55,30 +162,27 @@ function Login() {
 
       localStorage.setItem(
         "usuario",
-        JSON.stringify(data.usuario),
+        JSON.stringify({
+          ...data.usuario,
+          rol,
+        }),
       );
 
-      if (
-        data.usuario.rol ===
-        "ADMINISTRADOR"
-      ) {
-        navigate("/admin", {
-          replace: true,
-        });
-        return;
-      }
+      /* Redirigir según el rol */
 
-      navigate("/pasajero", {
+      navigate(destino, {
         replace: true,
       });
-    } catch {
-      setMensaje(
-        "Correo electrónico o contraseña incorrectos.",
-      );
+    } catch (error: unknown) {
+      setMensaje(obtenerMensajeError(error));
     } finally {
       setCargando(false);
     }
   };
+
+  /* =====================================
+     DISEÑO DEL LOGIN
+  ===================================== */
 
   return (
     <main
@@ -88,10 +192,14 @@ function Login() {
       }}
     >
       <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[480px] flex-col overflow-hidden bg-white shadow-2xl sm:min-h-[950px] sm:rounded-[32px]">
-        {/* ENCABEZADO VERDE */}
+
+        {/* =================================
+            ENCABEZADO VERDE
+        ================================= */}
 
         <header className="relative min-h-[310px] overflow-hidden bg-[#00783c] px-6 pt-5 text-white">
-          {/* NOAH COMO MARCA DE AGUA EN TODO EL FONDO */}
+
+          {/* VEHÍCULO NOAH DE FONDO */}
 
           <img
             src={noah}
@@ -100,11 +208,11 @@ function Login() {
             className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-25 mix-blend-luminosity"
           />
 
-          {/* CAPA VERDE SOBRE EL NOAH */}
+          {/* CAPA VERDE */}
 
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#00783c]/85 via-[#00783c]/65 to-[#004f28]/80" />
 
-          {/* FORMAS DECORATIVAS */}
+          {/* DECORACIÓN */}
 
           <div className="pointer-events-none absolute -left-24 top-16 h-48 w-80 rotate-[-12deg] rounded-[50%] bg-emerald-950/20" />
 
@@ -133,6 +241,8 @@ function Login() {
             </div>
           </div>
 
+          {/* TÍTULO */}
+
           <div className="relative z-20 mt-5 text-center drop-shadow-md">
             <h1 className="text-[32px] font-black tracking-tight">
               Iniciar Sesión
@@ -158,10 +268,15 @@ function Login() {
           </svg>
         </header>
 
-        {/* FORMULARIO */}
+        {/* =================================
+            FORMULARIO
+        ================================= */}
 
         <div className="relative z-30 -mt-[46px] flex-1 px-5 pb-5">
           <div className="rounded-[28px] border border-emerald-50 bg-white px-6 pb-7 pt-6 shadow-[0_20px_50px_rgba(0,73,38,0.16)]">
+
+            {/* BIENVENIDA */}
+
             <div className="mb-7 flex items-center gap-4">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
                 <UserRound size={29} />
@@ -182,6 +297,8 @@ function Login() {
               onSubmit={iniciarSesion}
               className="space-y-5"
             >
+              {/* CORREO ELECTRÓNICO */}
+
               <div>
                 <label
                   htmlFor="email"
@@ -205,20 +322,20 @@ function Login() {
                     name="email"
                     type="email"
                     autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     placeholder="ejemplo@correo.com"
                     value={email}
                     disabled={cargando}
                     onChange={(event) => {
-                      setEmail(
-                        event.target.value,
-                      );
+                      setEmail(event.target.value);
                       setMensaje("");
                     }}
                     className="h-[58px] w-full rounded-xl border border-emerald-600 bg-white pl-12 pr-12 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100"
                     required
                   />
 
-                  {email.trim() && (
+                  {correoValido && (
                     <CheckCircle2
                       size={20}
                       className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-emerald-700"
@@ -226,6 +343,8 @@ function Login() {
                   )}
                 </div>
               </div>
+
+              {/* CONTRASEÑA */}
 
               <div>
                 <label
@@ -258,14 +377,14 @@ function Login() {
                     value={password}
                     disabled={cargando}
                     onChange={(event) => {
-                      setPassword(
-                        event.target.value,
-                      );
+                      setPassword(event.target.value);
                       setMensaje("");
                     }}
                     className="h-[58px] w-full rounded-xl border border-emerald-600 bg-white pl-12 pr-12 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100"
                     required
                   />
+
+                  {/* MOSTRAR CONTRASEÑA */}
 
                   <button
                     type="button"
@@ -280,6 +399,7 @@ function Login() {
                         ? "Ocultar contraseña"
                         : "Mostrar contraseña"
                     }
+                    aria-pressed={mostrarPassword}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-700 hover:text-emerald-900"
                   >
                     {mostrarPassword ? (
@@ -289,6 +409,8 @@ function Login() {
                     )}
                   </button>
                 </div>
+
+                {/* RECUPERAR CONTRASEÑA */}
 
                 <div className="mt-2 text-right">
                   <Link
@@ -300,6 +422,8 @@ function Login() {
                 </div>
               </div>
 
+              {/* MENSAJE DE ERROR */}
+
               {mensaje && (
                 <div
                   role="alert"
@@ -308,6 +432,8 @@ function Login() {
                   {mensaje}
                 </div>
               )}
+
+              {/* BOTÓN INICIAR SESIÓN */}
 
               <button
                 type="submit"
@@ -331,6 +457,8 @@ function Login() {
               </button>
             </form>
 
+            {/* SEPARADOR */}
+
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-200" />
 
@@ -345,6 +473,8 @@ function Login() {
               <div className="h-px flex-1 bg-slate-200" />
             </div>
 
+            {/* CREAR CUENTA */}
+
             <p className="text-center text-sm font-semibold text-slate-600">
               ¿No tienes cuenta?{" "}
               <Link
@@ -355,6 +485,8 @@ function Login() {
               </Link>
             </p>
 
+            {/* VOLVER AL INICIO */}
+
             <div className="mt-6 text-center">
               <Link
                 to="/"
@@ -364,6 +496,8 @@ function Login() {
                 Volver al inicio
               </Link>
             </div>
+
+            {/* INFORMACIÓN DE SEGURIDAD */}
 
             <div className="mt-7 flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700">
@@ -389,41 +523,43 @@ function Login() {
           </div>
         </div>
 
-    {/* PIE DE PÁGINA */}
+        {/* =================================
+            PIE DE PÁGINA
+        ================================= */}
 
-    <footer className="relative overflow-hidden bg-gradient-to-r from-[#006b35] to-[#008643] px-5 pb-6 pt-8 text-white">
-      <svg
-        viewBox="0 0 480 38"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute -top-1 left-0 h-10 w-full"
-        aria-hidden="true"
-      >
-        <path
-          d="M0,6 C85,27 165,1 255,14 C350,28 410,3 480,11 L480,0 L0,0 Z"
-          fill="#ffffff"
-        />
-      </svg>
+        <footer className="relative overflow-hidden bg-gradient-to-r from-[#006b35] to-[#008643] px-5 pb-6 pt-8 text-white">
+          <svg
+            viewBox="0 0 480 38"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute -top-1 left-0 h-10 w-full"
+            aria-hidden="true"
+          >
+            <path
+              d="M0,6 C85,27 165,1 255,14 C350,28 410,3 480,11 L480,0 L0,0 Z"
+              fill="#ffffff"
+            />
+          </svg>
 
-      <div className="relative z-10 flex items-center justify-center gap-3">
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-white/70 bg-white shadow-lg">
-          <img
-            src={noah}
-            alt="Vehículo Noah de Trans 2 de Junio"
-            className="h-full w-full object-cover object-center"
-          />
-        </div>
+          <div className="relative z-10 flex items-center justify-center gap-3">
+            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-white/70 bg-white shadow-lg">
+              <img
+                src={noah}
+                alt="Vehículo Noah de Trans 2 de Junio"
+                className="h-full w-full object-cover object-center"
+              />
+            </div>
 
-        <div>
-          <p className="text-xs font-bold">
-            Sindicato Autotransporte Trans 2 de Junio
-          </p>
+            <div>
+              <p className="text-xs font-bold">
+                Sindicato Autotransporte Trans 2 de Junio
+              </p>
 
-          <p className="mt-1 text-[10px] text-emerald-100">
-            © 2026 Todos los derechos reservados
-          </p>
-        </div>
-      </div>
-    </footer>
+              <p className="mt-1 text-[10px] text-emerald-100">
+                © 2026 Todos los derechos reservados
+              </p>
+            </div>
+          </div>
+        </footer>
       </section>
     </main>
   );
