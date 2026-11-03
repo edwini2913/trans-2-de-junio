@@ -127,14 +127,15 @@ function BuscarViajes() {
   return (
     <div
       className="
-        min-h-screen
-        bg-slate-100
+        min-h-screen w-full min-w-0
+        overflow-x-clip bg-slate-100
       "
     >
       <header
         className="
-          flex flex-col gap-4
-          bg-blue-950 px-4 py-4
+          flex w-full min-w-0 flex-col gap-3
+          bg-blue-950 px-3 py-4
+          min-[380px]:px-4
           text-white
           sm:flex-row
           sm:items-center
@@ -145,8 +146,8 @@ function BuscarViajes() {
       >
         <div
           className="
-            flex min-w-0
-            items-center gap-3
+            flex w-full min-w-0
+            items-center gap-2 min-[380px]:gap-3
             sm:gap-4
           "
         >
@@ -154,17 +155,17 @@ function BuscarViajes() {
             src={logo}
             alt="Logo Trans 2 de Junio"
             className="
-              w-16 shrink-0
+              w-12 shrink-0
               rounded-xl bg-white
-              p-1 sm:w-20
+              p-1 min-[380px]:w-16 sm:w-20
             "
           />
 
           <div className="min-w-0">
             <h1
               className="
-                text-lg font-black
-                text-yellow-400
+                break-words text-base font-black
+                text-yellow-400 min-[380px]:text-lg
                 sm:text-2xl
               "
             >
@@ -204,15 +205,16 @@ function BuscarViajes() {
 
       <main
         className="
-          p-3
+          mx-auto w-full min-w-0 max-w-7xl
+          px-2 py-3 min-[380px]:px-3
           sm:p-6
           lg:p-8
         "
       >
         <section
           className="
-            rounded-2xl
-            bg-white p-4
+            w-full min-w-0 rounded-2xl
+            bg-white p-3 min-[380px]:p-4
             shadow
             sm:rounded-3xl
             sm:p-8
@@ -220,7 +222,7 @@ function BuscarViajes() {
         >
           <h2
             className="
-              text-2xl
+              break-words text-xl min-[380px]:text-2xl
               font-black
               text-slate-900
               sm:text-3xl
@@ -232,7 +234,7 @@ function BuscarViajes() {
           <form
             onSubmit={buscar}
             className="
-              mt-6 grid gap-4
+              mt-6 grid min-w-0 grid-cols-1 gap-4
               sm:grid-cols-2
               lg:mt-8
               lg:grid-cols-4
@@ -250,9 +252,9 @@ function BuscarViajes() {
               }
               placeholder="Origen: Chimoré"
               className="
-                w-full rounded-xl
+                min-w-0 w-full max-w-full rounded-xl
                 border border-slate-300
-                p-4 outline-none
+                p-4 text-base outline-none
                 transition
                 focus:border-blue-700
                 focus:ring-4
@@ -272,9 +274,9 @@ function BuscarViajes() {
               }
               placeholder="Destino: Cochabamba"
               className="
-                w-full rounded-xl
+                min-w-0 w-full max-w-full rounded-xl
                 border border-slate-300
-                p-4 outline-none
+                p-4 text-base outline-none
                 transition
                 focus:border-blue-700
                 focus:ring-4
@@ -294,9 +296,9 @@ function BuscarViajes() {
                 )
               }
               className="
-                w-full rounded-xl
+                min-w-0 w-full max-w-full rounded-xl
                 border border-slate-300
-                p-4 outline-none
+                p-4 text-base outline-none
                 transition
                 focus:border-blue-700
                 focus:ring-4
@@ -309,7 +311,7 @@ function BuscarViajes() {
               type="submit"
               disabled={cargando}
               className="
-                flex min-h-14
+                flex min-h-14 w-full min-w-0
                 items-center
                 justify-center gap-2
                 rounded-xl
@@ -347,7 +349,7 @@ function BuscarViajes() {
 
         <section
           className="
-            mt-6 grid gap-4
+            mt-6 grid min-w-0 gap-4
             lg:mt-8
             lg:grid-cols-2
             lg:gap-6
@@ -358,8 +360,8 @@ function BuscarViajes() {
               <article
                 key={viaje.id}
                 className="
-                  rounded-2xl border
-                  bg-white p-4
+                  min-w-0 overflow-hidden rounded-2xl border
+                  bg-white p-3 min-[380px]:p-4
                   shadow transition
                   hover:shadow-xl
                   sm:rounded-3xl
@@ -422,7 +424,7 @@ function BuscarViajes() {
                   className="
                     mt-5 grid
                     grid-cols-1 gap-3
-                    min-[380px]:grid-cols-3
+                    min-[360px]:grid-cols-2 sm:grid-cols-3
                     sm:mt-6 sm:gap-4
                   "
                 >
@@ -471,7 +473,7 @@ function BuscarViajes() {
                     viaje,
                   }}
                   className="
-                    mt-6 block w-full
+                    mt-6 block w-full min-w-0
                     rounded-xl
                     bg-yellow-400
                     px-4 py-4
@@ -511,7 +513,7 @@ function InformacionViaje({
     <div
       className="
         min-w-0 rounded-2xl
-        bg-slate-100 p-4
+        bg-slate-100 p-3 min-[380px]:p-4
       "
     >
       <div className="text-blue-800">

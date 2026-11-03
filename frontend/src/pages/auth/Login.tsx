@@ -186,18 +186,18 @@ function Login() {
 
   return (
     <main
-      className="relative min-h-screen overflow-hidden bg-cover bg-center bg-no-repeat sm:px-5 sm:py-8"
+      className="relative min-h-[100dvh] w-full min-w-0 overflow-x-clip bg-cover bg-center bg-no-repeat sm:px-5 sm:py-6 lg:py-8"
       style={{
         backgroundImage: `linear-gradient(rgba(0, 65, 32, 0.82), rgba(0, 35, 18, 0.9)), url(${fondo})`,
       }}
     >
-      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[480px] flex-col overflow-hidden bg-white shadow-2xl sm:min-h-[950px] sm:rounded-[32px]">
+      <section className="relative z-10 mx-auto flex min-h-[100dvh] w-full min-w-0 max-w-[480px] flex-col overflow-hidden bg-white shadow-2xl sm:min-h-0 sm:rounded-[28px] lg:rounded-[32px]">
 
         {/* =================================
             ENCABEZADO VERDE
         ================================= */}
 
-        <header className="relative min-h-[310px] overflow-hidden bg-[#00783c] px-6 pt-5 text-white">
+        <header className="relative min-h-[235px] shrink-0 overflow-hidden bg-[#00783c] px-3 pt-5 text-white min-[375px]:min-h-[255px] min-[375px]:px-5 sm:min-h-[300px] sm:px-6 sm:pt-7">
 
           {/* VEHÍCULO NOAH DE FONDO */}
 
@@ -218,7 +218,7 @@ function Login() {
 
           <div className="pointer-events-none absolute -right-24 -top-20 h-72 w-72 rounded-full border-[42px] border-white/5" />
 
-          <div className="pointer-events-none absolute right-5 top-14 grid grid-cols-5 gap-2 opacity-35">
+          <div className="pointer-events-none absolute right-3 top-12 hidden grid-cols-5 gap-2 opacity-35 min-[375px]:grid sm:right-5 sm:top-14">
             {Array.from({ length: 20 }).map(
               (_, indice) => (
                 <span
@@ -232,7 +232,7 @@ function Login() {
           {/* LOGO */}
 
           <div className="relative z-20 flex justify-center">
-            <div className="flex h-[112px] w-[225px] items-center justify-center overflow-hidden rounded-[55%] border-4 border-emerald-100 bg-white shadow-[0_12px_30px_rgba(0,0,0,0.3)]">
+            <div className="flex h-[82px] w-[170px] max-w-full items-center justify-center overflow-hidden rounded-[55%] border-[3px] border-emerald-100 bg-white shadow-[0_12px_30px_rgba(0,0,0,0.3)] min-[375px]:h-[95px] min-[375px]:w-[195px] sm:h-[112px] sm:w-[225px] sm:border-4">
               <img
                 src={logo}
                 alt="Logo de Trans 2 de Junio"
@@ -243,12 +243,12 @@ function Login() {
 
           {/* TÍTULO */}
 
-          <div className="relative z-20 mt-5 text-center drop-shadow-md">
-            <h1 className="text-[32px] font-black tracking-tight">
+          <div className="relative z-20 mt-3 text-center drop-shadow-md sm:mt-5">
+            <h1 className="text-[clamp(1.5rem,7vw,2rem)] font-black leading-tight tracking-tight">
               Iniciar Sesión
             </h1>
 
-            <p className="mt-1 text-sm font-bold text-emerald-50">
+            <p className="mt-1 text-xs font-bold text-emerald-50 min-[375px]:text-sm">
               Sistema Trans 2 de Junio
             </p>
           </div>
@@ -258,7 +258,7 @@ function Login() {
           <svg
             viewBox="0 0 480 80"
             preserveAspectRatio="none"
-            className="pointer-events-none absolute -bottom-1 left-0 z-20 h-20 w-full"
+            className="pointer-events-none absolute -bottom-1 left-0 z-20 h-12 w-full sm:h-20"
             aria-hidden="true"
           >
             <path
@@ -272,22 +272,22 @@ function Login() {
             FORMULARIO
         ================================= */}
 
-        <div className="relative z-30 -mt-[46px] flex-1 px-5 pb-5">
-          <div className="rounded-[28px] border border-emerald-50 bg-white px-6 pb-7 pt-6 shadow-[0_20px_50px_rgba(0,73,38,0.16)]">
+        <div className="relative z-30 -mt-6 flex-1 px-2.5 pb-3 min-[375px]:px-4 sm:-mt-[46px] sm:px-5 sm:pb-5">
+          <div className="min-w-0 rounded-2xl border border-emerald-50 bg-white px-3 pb-5 pt-4 shadow-[0_20px_50px_rgba(0,73,38,0.16)] min-[375px]:px-4 sm:rounded-[28px] sm:px-6 sm:pb-7 sm:pt-6">
 
             {/* BIENVENIDA */}
 
-            <div className="mb-7 flex items-center gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+            <div className="mb-4 flex min-w-0 items-center gap-2.5 sm:mb-7 sm:gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 sm:h-14 sm:w-14">
                 <UserRound size={29} />
               </div>
 
               <div>
-                <h2 className="text-xl font-black text-emerald-800">
+                <h2 className="text-base font-black leading-tight text-emerald-800 min-[375px]:text-lg sm:text-xl">
                   Bienvenido nuevamente
                 </h2>
 
-                <p className="mt-1 text-sm font-medium text-slate-500">
+                <p className="mt-1 text-xs font-medium leading-4 text-slate-500 sm:text-sm">
                   Ingresa tus datos para continuar
                 </p>
               </div>
@@ -295,7 +295,7 @@ function Login() {
 
             <form
               onSubmit={iniciarSesion}
-              className="space-y-5"
+              className="space-y-4 sm:space-y-5"
             >
               {/* CORREO ELECTRÓNICO */}
 
@@ -311,7 +311,7 @@ function Login() {
                   Correo electrónico
                 </label>
 
-                <div className="relative">
+                <div className="relative min-w-0">
                   <Mail
                     size={20}
                     className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700"
@@ -331,7 +331,7 @@ function Login() {
                       setEmail(event.target.value);
                       setMensaje("");
                     }}
-                    className="h-[58px] w-full rounded-xl border border-emerald-600 bg-white pl-12 pr-12 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100"
+                    className="min-h-12 w-full min-w-0 max-w-full rounded-xl border border-emerald-600 bg-white py-3 pl-11 pr-11 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100 sm:min-h-[58px] sm:pl-12 sm:pr-12"
                     required
                   />
 
@@ -358,7 +358,7 @@ function Login() {
                   Contraseña
                 </label>
 
-                <div className="relative">
+                <div className="relative min-w-0">
                   <Lock
                     size={20}
                     className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700"
@@ -380,7 +380,7 @@ function Login() {
                       setPassword(event.target.value);
                       setMensaje("");
                     }}
-                    className="h-[58px] w-full rounded-xl border border-emerald-600 bg-white pl-12 pr-12 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100"
+                    className="min-h-12 w-full min-w-0 max-w-full rounded-xl border border-emerald-600 bg-white py-3 pl-11 pr-11 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100 sm:min-h-[58px] sm:pl-12 sm:pr-12"
                     required
                   />
 
@@ -400,7 +400,7 @@ function Login() {
                         : "Mostrar contraseña"
                     }
                     aria-pressed={mostrarPassword}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-700 hover:text-emerald-900"
+                    className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900 focus-visible:outline-2 focus-visible:outline-emerald-700 sm:right-2"
                   >
                     {mostrarPassword ? (
                       <EyeOff size={21} />
@@ -415,7 +415,7 @@ function Login() {
                 <div className="mt-2 text-right">
                   <Link
                     to="/recuperar-password"
-                    className="text-xs font-bold text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+                    className="inline-flex min-h-10 items-center text-xs font-bold text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
                   >
                     ¿Olvidaste tu contraseña?
                   </Link>
@@ -438,7 +438,7 @@ function Login() {
               <button
                 type="submit"
                 disabled={cargando}
-                className="flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#009649] to-[#00773a] text-base font-black text-white shadow-lg shadow-emerald-800/25 transition hover:-translate-y-0.5 hover:from-[#008440] hover:to-[#006331] focus:ring-4 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#009649] to-[#00773a] px-3 py-3 text-base font-black text-white shadow-lg shadow-emerald-800/25 transition hover:from-[#008440] hover:to-[#006331] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-[56px]"
               >
                 {cargando ? (
                   <>
@@ -459,7 +459,7 @@ function Login() {
 
             {/* SEPARADOR */}
 
-            <div className="my-6 flex items-center gap-3">
+            <div className="my-4 flex items-center gap-3 sm:my-6">
               <div className="h-px flex-1 bg-slate-200" />
 
               <div className="flex flex-col items-center text-emerald-700">
@@ -479,7 +479,7 @@ function Login() {
               ¿No tienes cuenta?{" "}
               <Link
                 to="/register"
-                className="font-black text-emerald-700 underline underline-offset-2"
+                className="inline-flex min-h-10 items-center font-black text-emerald-700 underline underline-offset-2"
               >
                 Crear cuenta
               </Link>
@@ -487,10 +487,10 @@ function Login() {
 
             {/* VOLVER AL INICIO */}
 
-            <div className="mt-6 text-center">
+            <div className="mt-4 text-center sm:mt-6">
               <Link
                 to="/"
-                className="inline-flex items-center gap-2 text-sm font-black text-emerald-700 hover:text-emerald-900"
+                className="inline-flex min-h-11 items-center gap-2 text-sm font-black text-emerald-700 hover:text-emerald-900"
               >
                 <ArrowLeft size={17} />
                 Volver al inicio
@@ -499,8 +499,8 @@ function Login() {
 
             {/* INFORMACIÓN DE SEGURIDAD */}
 
-            <div className="mt-7 flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700">
+            <div className="mt-5 flex min-w-0 items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 sm:mt-7 sm:gap-3 sm:p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700 sm:h-12 sm:w-12">
                 <ShieldCheck size={28} />
               </div>
 
@@ -516,7 +516,7 @@ function Login() {
                 </p>
               </div>
 
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600">
+              <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 min-[375px]:flex">
                 <Lock size={16} />
               </div>
             </div>
@@ -527,7 +527,7 @@ function Login() {
             PIE DE PÁGINA
         ================================= */}
 
-        <footer className="relative overflow-hidden bg-gradient-to-r from-[#006b35] to-[#008643] px-5 pb-6 pt-8 text-white">
+        <footer className="relative overflow-hidden bg-gradient-to-r from-[#006b35] to-[#008643] px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6 text-white sm:px-5 sm:pb-6 sm:pt-8">
           <svg
             viewBox="0 0 480 38"
             preserveAspectRatio="none"
@@ -540,8 +540,8 @@ function Login() {
             />
           </svg>
 
-          <div className="relative z-10 flex items-center justify-center gap-3">
-            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-white/70 bg-white shadow-lg">
+          <div className="relative z-10 flex min-w-0 items-center justify-center gap-2 sm:gap-3">
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white/70 bg-white shadow-lg sm:h-14 sm:w-14">
               <img
                 src={noah}
                 alt="Vehículo Noah de Trans 2 de Junio"
@@ -550,7 +550,7 @@ function Login() {
             </div>
 
             <div>
-              <p className="text-xs font-bold">
+              <p className="break-words text-[11px] font-bold sm:text-xs">
                 Sindicato Autotransporte Trans 2 de Junio
               </p>
 

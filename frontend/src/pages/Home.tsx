@@ -166,22 +166,22 @@ function Home() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f4f9f6] text-slate-900">
+    <main className="min-h-screen w-full min-w-0 overflow-x-clip bg-[#f4f9f6] text-slate-900">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/15 bg-[#005536]/95 shadow-lg shadow-emerald-950/10 backdrop-blur-xl">
-        <div className="mx-auto flex h-[74px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-12 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white px-1 shadow-lg">
+        <div className="mx-auto flex h-[66px] w-full max-w-7xl items-center justify-between gap-2 px-3 min-[375px]:px-4 sm:h-[74px] sm:px-6 lg:px-8">
+          <Link to="/" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+            <div className="flex h-10 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white px-1 shadow-lg min-[375px]:w-14 sm:h-12 sm:w-16 sm:rounded-2xl">
               <img
                 src={logo}
                 alt="Logo Trans 2 de Junio"
                 className="h-full w-full scale-[1.2] object-contain"
               />
             </div>
-            <div>
-              <p className="text-sm font-black text-white sm:text-base">
+            <div className="min-w-0">
+              <p className="text-[13px] font-black leading-tight text-white min-[375px]:text-sm sm:text-base">
                 Trans 2 de Junio
               </p>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100">
+              <p className="text-[9px] font-black uppercase leading-4 tracking-[0.035em] text-emerald-100 min-[375px]:text-[10px] min-[375px]:tracking-[0.08em] sm:tracking-[0.16em]">
                 Venta y reserva de pasajes
               </p>
             </div>
@@ -197,15 +197,17 @@ function Home() {
           <button
             type="button"
             onClick={() => setMenuAbierto((valor) => !valor)}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/30 bg-white/10 text-white lg:hidden"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/10 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white lg:hidden"
             aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={menuAbierto}
+            aria-controls="menu-principal-movil"
           >
             {menuAbierto ? <X size={23} /> : <Menu size={23} />}
           </button>
         </div>
 
         {menuAbierto && (
-          <div className="border-t border-white/15 bg-[#005536] px-4 py-4 lg:hidden">
+          <div id="menu-principal-movil" className="max-h-[calc(100dvh-66px)] overflow-y-auto border-t border-white/15 bg-[#005536] px-3 py-3 shadow-xl min-[375px]:px-4 lg:hidden">
             <div className="mx-auto grid max-w-7xl gap-2">
               <EnlaceMenuMovil texto="Inicio" onClick={() => irASeccion("inicio")} />
               <EnlaceMenuMovil texto="Destinos" onClick={() => irASeccion("destinos")} />
@@ -216,7 +218,7 @@ function Home() {
         )}
       </header>
 
-      <section id="inicio" className="relative isolate overflow-hidden pt-[74px]">
+      <section id="inicio" className="relative isolate scroll-mt-[66px] overflow-hidden pt-[66px] sm:scroll-mt-[74px] sm:pt-[74px]">
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: `url(${fondo})` }}
@@ -232,31 +234,31 @@ function Home() {
           ))}
         </div>
 
-        <div className="relative z-10 mx-auto grid min-h-[660px] max-w-7xl items-center gap-10 px-5 pb-24 pt-14 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:pb-28 lg:pt-16">
-          <div className="text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700 shadow-sm backdrop-blur-md sm:text-xs">
+        <div className="relative z-10 mx-auto grid w-full min-w-0 max-w-7xl items-center gap-1 px-4 pb-16 pt-9 min-[375px]:px-5 sm:gap-8 sm:px-6 sm:pb-24 sm:pt-14 lg:min-h-[660px] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-10 lg:px-8 lg:pb-28 lg:pt-16">
+          <div className="min-w-0 text-center lg:text-left">
+            <div className="inline-flex max-w-full items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-2 text-[10px] font-black uppercase tracking-[0.05em] text-emerald-700 shadow-sm backdrop-blur-md min-[375px]:px-4 min-[375px]:text-[11px] sm:text-xs sm:tracking-[0.16em]">
               <ShieldCheck size={17} />
               Viajes rápidos y seguros
             </div>
 
-            <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-black leading-[1.02] tracking-tight text-slate-950 sm:text-5xl lg:mx-0 lg:text-6xl xl:text-7xl">
+            <h1 className="mx-auto mt-5 max-w-3xl text-[clamp(1.9rem,8.5vw,3rem)] font-black leading-[1.08] tracking-tight text-slate-950 sm:mt-6 sm:text-5xl lg:mx-0 lg:text-6xl xl:text-7xl">
               Bienvenido a
               <span className="block text-emerald-700">Trans 2 de Junio</span>
             </h1>
 
-            <p className="mx-auto mt-4 max-w-2xl text-xl font-black text-slate-700 sm:text-2xl lg:mx-0">
+            <p className="mx-auto mt-3 max-w-2xl text-base font-black leading-snug text-slate-700 min-[375px]:text-lg sm:mt-4 sm:text-2xl lg:mx-0">
               Viaja seguro, rápido y confiable
             </p>
 
-            <p className="mx-auto mt-5 max-w-xl text-base font-medium leading-8 text-slate-600 sm:text-lg lg:mx-0">
+            <p className="mx-auto mt-4 max-w-xl text-sm font-medium leading-6 text-slate-600 min-[375px]:text-[15px] sm:mt-5 sm:text-lg sm:leading-8 lg:mx-0">
               Compra o reserva tus pasajes desde el celular, elige tu asiento y
               recibe tu ticket electrónico con código QR.
             </p>
 
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
+            <div className="mt-6 grid grid-cols-1 gap-3 min-[375px]:grid-cols-2 sm:mt-8 sm:flex sm:flex-row lg:justify-start">
               <Link
                 to="/register"
-                className="inline-flex h-14 items-center justify-center gap-3 rounded-2xl bg-emerald-700 px-7 font-black text-white shadow-[0_18px_45px_rgba(0,100,65,0.25)] transition hover:-translate-y-1 hover:bg-emerald-800"
+                className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-3 text-[13px] font-black text-white min-[375px]:gap-2 sm:h-14 sm:gap-3 sm:rounded-2xl sm:px-7 sm:text-base shadow-[0_18px_45px_rgba(0,100,65,0.25)] transition hover:-translate-y-1 hover:bg-emerald-800"
               >
                 <UserPlus size={20} />
                 Crear cuenta
@@ -265,25 +267,25 @@ function Home() {
 
               <Link
                 to="/login"
-                className="inline-flex h-14 items-center justify-center gap-3 rounded-2xl border-2 border-emerald-700 bg-white/80 px-7 font-black text-emerald-700 backdrop-blur-md transition hover:-translate-y-1 hover:bg-emerald-50"
+                className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border-2 border-emerald-700 bg-white/80 px-3 py-3 text-[13px] font-black text-emerald-700 min-[375px]:gap-2 sm:h-14 sm:gap-3 sm:rounded-2xl sm:px-7 sm:text-base backdrop-blur-md transition hover:-translate-y-1 hover:bg-emerald-50"
               >
                 <Lock size={19} />
                 Iniciar sesión
               </Link>
             </div>
 
-            <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
+            <div className="mt-5 flex flex-wrap justify-center gap-2 sm:mt-8 sm:gap-3 lg:justify-start">
               <Etiqueta icono={<Clock3 size={16} />} texto="Disponible 24/7" />
               <Etiqueta icono={<ShieldCheck size={16} />} texto="Compra segura" />
               <Etiqueta icono={<Smartphone size={16} />} texto="Atención al cliente" />
             </div>
           </div>
 
-          <div className="relative mx-auto flex min-h-[430px] w-full max-w-[720px] items-center justify-center sm:min-h-[540px] lg:min-h-[570px]">
+          <div className="relative mx-auto flex h-[min(88vw,360px)] min-h-[260px] w-full min-w-0 max-w-[720px] items-center justify-center sm:h-auto sm:min-h-[540px] lg:min-h-[570px]">
             {/* Halo e iluminación */}
-            <div className="pointer-events-none absolute h-[330px] w-[330px] rounded-full bg-lime-300/30 blur-3xl sm:h-[470px] sm:w-[470px]" />
-            <div className="pointer-events-none absolute h-[310px] w-[310px] rounded-full border border-emerald-300/35 bg-gradient-to-br from-white/45 via-emerald-100/35 to-lime-200/30 shadow-[0_35px_85px_rgba(0,110,70,0.20)] sm:h-[445px] sm:w-[445px]" />
-            <div className="pointer-events-none absolute h-[270px] w-[270px] rounded-full border-[18px] border-emerald-500/12 sm:h-[390px] sm:w-[390px]" />
+            <div className="pointer-events-none absolute h-[82%] max-h-[330px] aspect-square rounded-full bg-lime-300/30 blur-3xl sm:max-h-none sm:h-[470px] sm:w-[470px]" />
+            <div className="pointer-events-none absolute h-[78%] max-h-[310px] aspect-square rounded-full border border-emerald-300/35 bg-gradient-to-br from-white/45 via-emerald-100/35 to-lime-200/30 shadow-[0_35px_85px_rgba(0,110,70,0.20)] sm:h-[445px] sm:w-[445px]" />
+            <div className="pointer-events-none absolute h-[68%] max-h-[270px] aspect-square rounded-full border-[12px] sm:border-[18px] border-emerald-500/12 sm:h-[390px] sm:w-[390px]" />
 
             {/* Formas verdes detrás de la Noah */}
             <div className="pointer-events-none absolute left-[7%] top-[34%] h-16 w-16 rounded-full bg-emerald-500 shadow-[0_18px_38px_rgba(16,185,129,0.35)] sm:h-24 sm:w-24" />
@@ -305,11 +307,11 @@ function Home() {
             <img
               src={taxi1}
               alt="Vehículo Noah Trans 2 de Junio"
-              className="relative z-10 mb-8 h-[315px] w-[390px] object-contain object-center drop-shadow-[0_30px_28px_rgba(0,70,45,0.34)] sm:mb-10 sm:h-[440px] sm:w-[590px] lg:h-[480px] lg:w-[650px]"
+              className="relative z-10 mb-5 h-[84%] max-h-[315px] w-full max-w-[390px] object-contain object-center drop-shadow-[0_30px_28px_rgba(0,70,45,0.34)] sm:mb-10 sm:h-[440px] sm:w-[590px] lg:h-[480px] lg:w-[650px]"
             />
 
             {/* Logo flotante */}
-            <div className="absolute right-[2%] top-[8%] z-20 flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-white/95 p-2 shadow-[0_18px_40px_rgba(0,80,45,0.25)] backdrop-blur-md sm:right-[7%] sm:h-28 sm:w-28">
+            <div className="absolute right-[2%] top-[8%] z-20 flex h-14 w-14 items-center justify-center rounded-full border-[3px] min-[375px]:h-16 min-[375px]:w-16 sm:h-28 sm:w-28 sm:border-4 border-white bg-white/95 p-2 shadow-[0_18px_40px_rgba(0,80,45,0.25)] backdrop-blur-md sm:right-[7%] sm:h-28 sm:w-28">
               <img
                 src={logo}
                 alt="Logo Trans 2 de Junio"
@@ -332,10 +334,10 @@ function Home() {
         </svg>
       </section>
 
-      <section className="relative isolate overflow-hidden px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+      <section className="relative isolate overflow-hidden px-3 py-10 min-[375px]:px-4 sm:px-6 sm:py-14 lg:px-8 lg:py-20">
         <FondoSeccionDecorativo variante="estadisticas" />
 
-        <div className="relative z-10 mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="relative z-10 mx-auto grid max-w-7xl grid-cols-2 gap-2 min-[375px]:gap-3 sm:gap-4 xl:grid-cols-4">
           {ESTADISTICAS.map((estadistica) => (
             <TarjetaEstadistica key={estadistica.titulo} estadistica={estadistica} />
           ))}
@@ -344,12 +346,12 @@ function Home() {
 
       <section
         id="destinos"
-        className="relative isolate scroll-mt-24 overflow-hidden px-4 py-16 sm:px-6 lg:px-8 lg:py-24"
+        className="relative isolate scroll-mt-24 overflow-hidden px-3 py-12 min-[375px]:px-4 sm:px-6 sm:py-16 lg:px-8 lg:py-24"
       >
         <FondoSeccionDecorativo variante="destinos" />
 
         <div className="relative z-10 mx-auto max-w-7xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <EncabezadoSeccion
               alineacion="izquierda"
               etiqueta="Destinos destacados"
@@ -358,14 +360,14 @@ function Home() {
             />
             <Link
               to="/login"
-              className="inline-flex w-fit items-center gap-2 rounded-xl border border-emerald-200 bg-white px-5 py-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 sm:w-fit bg-white px-5 py-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-50"
             >
               Ver todos los viajes
               <ArrowRight size={18} />
             </Link>
           </div>
 
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          <div className="mt-7 grid gap-4 sm:mt-10 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 2xl:grid-cols-5">
             {DESTINOS.map((destino, indice) => (
               <TarjetaDestino key={destino.nombre} destino={destino} destacado={indice === 0} />
             ))}
@@ -375,7 +377,7 @@ function Home() {
 
       <section
         id="como-funciona"
-        className="relative isolate scroll-mt-24 overflow-hidden bg-white px-4 py-16 sm:px-6 lg:px-8 lg:py-24"
+        className="relative isolate scroll-mt-24 overflow-hidden bg-white px-3 py-12 min-[375px]:px-4 sm:px-6 sm:py-16 lg:px-8 lg:py-24"
       >
         <FondoSeccionDecorativo variante="pasos" />
 
@@ -388,7 +390,7 @@ function Home() {
 
           <div className="relative mt-12">
             <div className="absolute left-[10%] right-[10%] top-10 hidden h-1 rounded-full bg-gradient-to-r from-emerald-200 via-emerald-500 to-lime-300 lg:block" />
-            <div className="relative grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="relative grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-5">
               {PASOS.map((paso) => (
                 <TarjetaPaso key={paso.numero} paso={paso} />
               ))}
@@ -402,7 +404,7 @@ function Home() {
         className="scroll-mt-24 bg-gradient-to-r from-[#003b26] via-[#005e3b] to-[#00794b] px-4 pb-8 pt-16 text-white sm:px-6 lg:px-8"
       >
         <div className="mx-auto max-w-7xl">
-          <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-8 sm:gap-10 md:grid-cols-2 lg:grid-cols-4">
             <div>
               <div className="flex items-center gap-3">
                 <div className="flex h-16 w-20 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 shadow-lg">
@@ -658,7 +660,7 @@ function EnlaceMenuMovil({ texto, onClick }: { texto: string; onClick: () => voi
 
 function Etiqueta({ icono, texto }: { icono: ReactNode; texto: string }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/75 px-4 py-2 text-xs font-bold text-slate-700 backdrop-blur-md">
+    <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-white/75 px-3 py-2 text-[11px] font-bold sm:gap-2 sm:px-4 sm:text-xs text-slate-700 backdrop-blur-md">
       <span className="text-emerald-700">{icono}</span>
       {texto}
     </span>
@@ -667,18 +669,18 @@ function Etiqueta({ icono, texto }: { icono: ReactNode; texto: string }) {
 
 function TarjetaEstadistica({ estadistica }: { estadistica: Estadistica }) {
   return (
-    <article className="group rounded-[24px] border border-emerald-100 bg-white p-6 shadow-md shadow-emerald-900/5 transition duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 transition group-hover:bg-emerald-700 group-hover:text-white">
+    <article className="group min-w-0 rounded-2xl border border-emerald-100 bg-white p-3 shadow-md min-[375px]:p-4 sm:rounded-[24px] sm:p-6 shadow-emerald-900/5 transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+      <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 sm:h-12 sm:w-12 sm:rounded-2xl text-emerald-700 transition group-hover:bg-emerald-700 group-hover:text-white">
           {estadistica.icono}
         </div>
-        <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-700 sm:px-3 sm:text-[10px]">
           Activo
         </span>
       </div>
-      <p className="mt-6 text-4xl font-black text-slate-900">{estadistica.valor}</p>
-      <h3 className="mt-2 font-black text-slate-800">{estadistica.titulo}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{estadistica.descripcion}</p>
+      <p className="mt-4 break-words text-2xl font-black text-slate-900 min-[375px]:text-3xl sm:mt-6 sm:text-4xl">{estadistica.valor}</p>
+      <h3 className="mt-2 text-[13px] font-black leading-5 text-slate-800 sm:text-base">{estadistica.titulo}</h3>
+      <p className="mt-1 text-xs leading-5 text-slate-500 sm:mt-2 sm:text-sm sm:leading-6">{estadistica.descripcion}</p>
     </article>
   );
 }
@@ -699,7 +701,7 @@ function EncabezadoSeccion({
   return (
     <div className={centrado ? "mx-auto max-w-3xl text-center" : "max-w-3xl text-left"}>
       <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-600">{etiqueta}</p>
-      <h2 className="mt-3 text-3xl font-black leading-tight text-slate-900 sm:text-4xl lg:text-5xl">
+      <h2 className="mt-3 text-[clamp(1.55rem,7vw,2.25rem)] font-black leading-tight text-slate-900 sm:text-4xl lg:text-5xl">
         {titulo}
       </h2>
       <p className={`mt-4 text-base leading-7 text-slate-500 ${centrado ? "mx-auto max-w-2xl" : "max-w-2xl"}`}>
@@ -717,8 +719,8 @@ function TarjetaDestino({
   destacado: boolean;
 }) {
   return (
-    <article className="group overflow-hidden rounded-[26px] border border-emerald-100 bg-white shadow-lg shadow-emerald-900/5 transition duration-300 hover:-translate-y-2 hover:shadow-xl">
-      <div className="relative h-56 overflow-hidden">
+    <article className="group min-w-0 overflow-hidden rounded-[20px] border border-emerald-100 bg-white sm:rounded-[26px] shadow-lg shadow-emerald-900/5 transition duration-300 hover:-translate-y-2 hover:shadow-xl">
+      <div className="relative h-44 overflow-hidden min-[375px]:h-48 sm:h-56">
         <img
           src={destino.imagen}
           alt={`Destino ${destino.nombre}`}
@@ -735,11 +737,11 @@ function TarjetaDestino({
           <p className="mt-1 text-sm text-emerald-100">{destino.descripcion}</p>
         </div>
       </div>
-      <div className="flex items-center justify-between gap-3 p-5">
-        <p className="text-sm font-black text-emerald-700">Consultar disponibilidad</p>
+      <div className="flex min-w-0 items-center justify-between gap-2 p-3 min-[375px]:p-4 sm:gap-3 sm:p-5">
+        <p className="min-w-0 text-xs font-black leading-5 text-emerald-700 sm:text-sm">Consultar disponibilidad</p>
         <Link
           to="/login"
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-700 text-white transition hover:bg-emerald-800"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white transition hover:bg-emerald-800"
           aria-label={`Reservar viaje a ${destino.nombre}`}
         >
           <ArrowRight size={19} />
@@ -751,15 +753,15 @@ function TarjetaDestino({
 
 function TarjetaPaso({ paso }: { paso: Paso }) {
   return (
-    <article className="relative rounded-[26px] border border-emerald-100 bg-white p-6 text-center shadow-md shadow-emerald-900/5 transition duration-300 hover:-translate-y-2 hover:shadow-xl">
-      <div className="relative z-10 mx-auto flex h-20 w-20 items-center justify-center rounded-full border-8 border-white bg-gradient-to-br from-emerald-700 to-emerald-500 text-white shadow-lg">
+    <article className="relative min-w-0 rounded-[20px] border border-emerald-100 bg-white p-4 text-center sm:rounded-[26px] sm:p-6 shadow-md shadow-emerald-900/5 transition duration-300 hover:-translate-y-2 hover:shadow-xl">
+      <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[6px] sm:h-20 sm:w-20 sm:border-8 border-white bg-gradient-to-br from-emerald-700 to-emerald-500 text-white shadow-lg">
         {paso.icono}
       </div>
       <span className="mt-5 inline-block rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
         Paso {paso.numero}
       </span>
       <h3 className="mt-3 text-lg font-black text-slate-900">{paso.titulo}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{paso.descripcion}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-500 sm:mt-2 sm:text-sm sm:leading-6">{paso.descripcion}</p>
     </article>
   );
 }
@@ -770,7 +772,7 @@ function BotonRedSocial({ etiqueta, icono }: { etiqueta: string; icono: ReactNod
       type="button"
       aria-label={etiqueta}
       title={etiqueta}
-      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-emerald-800"
+      className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-emerald-800"
     >
       {icono}
     </button>

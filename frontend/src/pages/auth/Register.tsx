@@ -157,17 +157,17 @@ function Register() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#edf8f0] px-3 py-4 sm:px-6 sm:py-8">
+    <main className="relative min-h-[100dvh] w-full min-w-0 overflow-x-hidden bg-[#edf8f0] px-0 py-0 sm:px-5 sm:py-7 lg:px-8">
       {/* DECORACIONES DEL FONDO */}
 
       <div className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-emerald-300/25 blur-3xl" />
 
       <div className="pointer-events-none absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-green-400/20 blur-3xl" />
 
-      <section className="relative z-10 mx-auto w-full max-w-5xl overflow-hidden rounded-[32px] border border-emerald-100 bg-white shadow-[0_25px_80px_rgba(0,91,46,0.18)]">
+      <section className="relative z-10 mx-auto w-full min-w-0 max-w-5xl overflow-hidden bg-white shadow-[0_25px_80px_rgba(0,91,46,0.18)] sm:rounded-[28px] sm:border sm:border-emerald-100 lg:rounded-[32px]">
         {/* FORMAS ORGÁNICAS SUPERIORES */}
 
-        <div className="pointer-events-none absolute left-0 top-0 h-48 w-52 overflow-hidden">
+        <div className="pointer-events-none absolute left-0 top-0 h-36 w-32 overflow-hidden sm:h-48 sm:w-52">
           <div className="absolute -left-16 -top-24 h-64 w-72 rotate-[-20deg] rounded-[50%] bg-emerald-700" />
 
           <div className="absolute -left-24 -top-10 h-56 w-72 rotate-[-20deg] rounded-[50%] bg-emerald-400/55" />
@@ -175,7 +175,7 @@ function Register() {
           <div className="absolute -left-20 top-4 h-40 w-64 rotate-[-20deg] rounded-[50%] bg-emerald-200/70" />
         </div>
 
-        <div className="pointer-events-none absolute right-9 top-9 grid grid-cols-5 gap-2 opacity-25">
+        <div className="pointer-events-none absolute right-3 top-5 grid grid-cols-5 gap-1.5 opacity-15 sm:right-9 sm:top-9 sm:gap-2 sm:opacity-25">
           {Array.from({ length: 25 }).map(
             (_, indice) => (
               <span
@@ -188,7 +188,7 @@ function Register() {
 
         {/* FORMAS ORGÁNICAS INFERIORES */}
 
-        <div className="pointer-events-none absolute bottom-0 right-0 h-64 w-64 overflow-hidden">
+        <div className="pointer-events-none absolute bottom-0 right-0 h-32 w-32 overflow-hidden sm:h-64 sm:w-64">
           <div className="absolute -bottom-24 -right-24 h-72 w-80 rotate-[-30deg] rounded-[50%] bg-emerald-700" />
 
           <div className="absolute -bottom-12 -right-28 h-56 w-80 rotate-[-30deg] rounded-[50%] bg-emerald-400/55" />
@@ -196,7 +196,7 @@ function Register() {
           <div className="absolute bottom-5 -right-24 h-40 w-72 rotate-[-30deg] rounded-[50%] bg-emerald-200/70" />
         </div>
 
-        <div className="pointer-events-none absolute bottom-20 left-8 grid grid-cols-5 gap-2 opacity-20">
+        <div className="pointer-events-none absolute bottom-20 left-2 grid grid-cols-5 gap-1.5 opacity-10 sm:left-8 sm:gap-2 sm:opacity-20">
           {Array.from({ length: 20 }).map(
             (_, indice) => (
               <span
@@ -207,24 +207,24 @@ function Register() {
           )}
         </div>
 
-        <div className="relative z-20 px-5 pb-8 pt-8 sm:px-10 sm:pb-10 lg:px-16">
+        <div className="relative z-20 min-w-0 px-4 pb-7 pt-6 min-[375px]:px-5 sm:px-10 sm:pb-10 sm:pt-8 lg:px-16">
           {/* LOGO Y TÍTULO */}
 
           <header className="text-center">
-            <div className="mx-auto flex h-[125px] w-[230px] items-center justify-center overflow-hidden">
+            <div className="mx-auto flex h-20 w-full max-w-[190px] items-center justify-center overflow-hidden min-[375px]:h-24 min-[375px]:max-w-[210px] sm:h-[125px] sm:max-w-[230px]">
               <img
                 src={logo}
                 alt="Logo de Trans 2 de Junio"
-                className="h-full w-full scale-[1.4] object-contain"
+                className="h-full w-full scale-[1.2] object-contain sm:scale-[1.4]"
               />
             </div>
 
-            <div className="mt-1 flex items-center justify-center gap-3">
+            <div className="mt-2 flex min-w-0 items-center justify-center gap-2 sm:gap-3">
               <span className="text-emerald-700">
                 ❧
               </span>
 
-              <h1 className="text-3xl font-black tracking-tight text-emerald-700 sm:text-4xl">
+              <h1 className="text-[clamp(1.6rem,7vw,2.25rem)] font-black tracking-tight text-emerald-700 sm:text-4xl">
                 Crear Cuenta
               </h1>
 
@@ -233,7 +233,7 @@ function Register() {
               </span>
             </div>
 
-            <p className="mt-2 text-sm font-medium text-slate-500 sm:text-base">
+            <p className="mx-auto mt-2 max-w-[34ch] text-center text-[13px] font-medium leading-5 text-slate-500 sm:max-w-none sm:text-base">
               Regístrate como pasajero de Trans 2 de
               Junio
             </p>
@@ -244,7 +244,7 @@ function Register() {
           {mensaje && (
             <div
               role="alert"
-              className={`mx-auto mt-6 flex max-w-4xl items-start gap-3 rounded-2xl border p-4 text-sm font-semibold ${
+              className={`mx-auto mt-5 flex min-w-0 max-w-4xl items-start gap-2.5 rounded-xl border p-3 text-[13px] font-semibold leading-5 sm:mt-6 sm:gap-3 sm:rounded-2xl sm:p-4 sm:text-sm ${
                 exito
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                   : "border-red-200 bg-red-50 text-red-700"
@@ -264,7 +264,7 @@ function Register() {
                 )}
               </div>
 
-              <p className="leading-6">
+              <p className="min-w-0 break-words leading-5 sm:leading-6">
                 {mensaje}
               </p>
             </div>
@@ -274,7 +274,7 @@ function Register() {
 
           <form
             onSubmit={registrarUsuario}
-            className="mx-auto mt-7 grid max-w-4xl gap-x-7 gap-y-5 md:grid-cols-2"
+            className="mx-auto mt-6 grid w-full min-w-0 max-w-4xl grid-cols-1 gap-x-5 gap-y-4 sm:mt-7 sm:gap-x-7 sm:gap-y-5 md:grid-cols-2"
           >
             <CampoRegistro
               label="Nombre"
@@ -335,7 +335,7 @@ function Register() {
               bloqueado={cargando}
             />
 
-            <div>
+            <div className="min-w-0">
               <label
                 htmlFor="password"
                 className="mb-2 flex items-center gap-2 text-sm font-black text-slate-700"
@@ -368,10 +368,10 @@ function Register() {
                   disabled={cargando}
                   minLength={6}
                   required
-                  className="h-[58px] w-full rounded-xl border border-emerald-500 bg-white pl-12 pr-20 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="h-[52px] w-full min-w-0 rounded-xl border border-emerald-500 bg-white pl-11 pr-20 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 sm:h-[58px] sm:pl-12"
                 />
 
-                <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0 sm:right-2 sm:gap-1">
                   <button
                     type="button"
                     onClick={() =>
@@ -385,7 +385,7 @@ function Register() {
                         ? "Ocultar contraseña"
                         : "Mostrar contraseña"
                     }
-                    className="text-slate-400 transition hover:text-emerald-700"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900"
                   >
                     {mostrarPassword ? (
                       <EyeOff size={19} />
@@ -407,7 +407,7 @@ function Register() {
             <button
               type="submit"
               disabled={cargando}
-              className="flex h-[56px] w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-[#009348] to-[#00783b] px-5 text-base font-black text-white shadow-lg shadow-emerald-900/20 transition hover:-translate-y-0.5 hover:from-[#00823f] hover:to-[#006432] hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
+              className="flex min-h-[52px] w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#009348] to-[#00783b] px-5 text-base font-black text-white shadow-lg shadow-emerald-900/20 transition hover:-translate-y-0.5 hover:from-[#00823f] hover:to-[#006432] hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
             >
               {cargando ? (
                 <>
@@ -427,7 +427,7 @@ function Register() {
 
             {/* SEGURIDAD */}
 
-            <div className="flex items-center gap-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 md:col-span-2">
+            <div className="flex min-w-0 items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 sm:gap-4 sm:p-4 md:col-span-2">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700">
                 <ShieldCheck size={28} />
               </div>
@@ -443,7 +443,7 @@ function Register() {
                 </p>
               </div>
 
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-500">
+              <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-500 min-[390px]:flex">
                 <Lock size={17} />
               </div>
             </div>
@@ -474,7 +474,7 @@ function Register() {
 
         {/* PIE DE PÁGINA */}
 
-        <footer className="relative z-20 overflow-hidden bg-gradient-to-r from-[#006b35] to-[#009249] px-5 pb-5 pt-8 text-white">
+        <footer className="relative z-20 overflow-hidden bg-gradient-to-r from-[#006b35] to-[#009249] px-4 pb-5 pt-7 text-white sm:px-5 sm:pt-8">
           <svg
             viewBox="0 0 1000 45"
             preserveAspectRatio="none"
@@ -487,10 +487,10 @@ function Register() {
             />
           </svg>
 
-          <div className="relative z-10 flex items-center justify-center gap-2 text-center">
+          <div className="relative z-10 flex min-w-0 items-center justify-center gap-2 text-center">
             <ShieldCheck size={16} />
 
-            <p className="text-xs font-semibold">
+            <p className="min-w-0 text-[11px] font-semibold leading-4 sm:text-xs">
               © 2026 Sindicato Autotransporte Trans 2
               de Junio
             </p>
@@ -532,7 +532,7 @@ function CampoRegistro({
     value.trim().length > 0;
 
   return (
-    <div>
+    <div className="min-w-0">
       <label
         htmlFor={name}
         className="mb-2 flex items-center gap-2 text-sm font-black text-slate-700"
@@ -558,10 +558,12 @@ function CampoRegistro({
           placeholder={placeholder}
           inputMode={inputMode}
           autoComplete={autoComplete}
+          autoCapitalize={type === "email" ? "none" : undefined}
+          spellCheck={type === "email" ? false : undefined}
           maxLength={maxLength}
           disabled={bloqueado}
           required
-          className="h-[58px] w-full rounded-xl border border-emerald-500 bg-white pl-12 pr-11 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="h-[52px] w-full min-w-0 rounded-xl border border-emerald-500 bg-white pl-11 pr-11 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 sm:h-[58px] sm:pl-12"
         />
 
         {campoCompleto && (

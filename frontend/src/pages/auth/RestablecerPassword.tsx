@@ -221,8 +221,10 @@ function RestablecerPassword() {
       className="
         relative flex min-h-screen
         items-center justify-center
-        overflow-hidden bg-cover
-        bg-center px-4 py-8
+        overflow-x-hidden bg-cover
+        bg-center px-2 py-3
+        min-[360px]:px-3 min-[360px]:py-5
+        sm:px-5 sm:py-8
       "
       style={{
         backgroundImage:
@@ -234,7 +236,7 @@ function RestablecerPassword() {
     >
       <div
         className="
-          absolute -left-24 top-20
+          pointer-events-none absolute -left-24 top-20
           h-72 w-72 rounded-full
           border-[50px] border-white/5
         "
@@ -242,7 +244,7 @@ function RestablecerPassword() {
 
       <div
         className="
-          absolute -right-20 bottom-10
+          pointer-events-none absolute -right-20 bottom-10
           h-80 w-80 rounded-full
           bg-lime-300/10 blur-3xl
         "
@@ -250,10 +252,10 @@ function RestablecerPassword() {
 
       <section
         className="
-          relative z-10 w-full
+          relative z-10 w-full min-w-0
           max-w-md overflow-hidden
-          rounded-[30px] bg-white
-          shadow-2xl
+          rounded-[22px] bg-white
+          shadow-2xl sm:rounded-[30px]
         "
       >
         <header
@@ -261,16 +263,17 @@ function RestablecerPassword() {
             bg-gradient-to-br
             from-emerald-800
             to-emerald-600
-            px-7 py-8 text-center
-            text-white
+            px-4 pb-6 pt-6 text-center
+            text-white min-[360px]:px-6
+            sm:px-7 sm:py-8
           "
         >
           <img
             src={logo}
             alt="Logo Trans 2 de Junio"
             className="
-              mx-auto h-24 w-44
-              rounded-2xl bg-white
+              mx-auto h-20 w-36 max-w-full
+              rounded-2xl bg-white sm:h-24 sm:w-44
               object-contain p-2
               shadow-lg
             "
@@ -278,8 +281,8 @@ function RestablecerPassword() {
 
           <h1
             className="
-              mt-6 text-3xl
-              font-black
+              mt-4 break-words text-[clamp(1.45rem,6vw,1.875rem)]
+              font-black leading-tight sm:mt-6
             "
           >
             Nueva contraseña
@@ -296,7 +299,7 @@ function RestablecerPassword() {
           </p>
         </header>
 
-        <div className="p-7">
+        <div className="min-w-0 p-4 min-[360px]:p-5 sm:p-7">
           {mensaje ? (
             <div className="text-center">
               <div
@@ -346,13 +349,13 @@ function RestablecerPassword() {
               onSubmit={
                 guardarPassword
               }
-              className="space-y-5"
+              className="min-w-0 space-y-4 sm:space-y-5"
             >
               {!tokenValido && (
                 <div
                   role="alert"
                   className="
-                    rounded-xl border
+                    min-w-0 break-words rounded-xl border
                     border-red-200
                     bg-red-50 px-4 py-3
                     text-sm font-bold
@@ -411,8 +414,8 @@ function RestablecerPassword() {
                   )
                 }
                 className="
-                  flex items-center
-                  gap-2 text-xs
+                  inline-flex min-h-11 items-center
+                  gap-2 rounded-lg px-1 text-sm
                   font-black
                   text-emerald-700
                   disabled:opacity-60
@@ -433,7 +436,7 @@ function RestablecerPassword() {
                 <div
                   role="alert"
                   className="
-                    rounded-xl border
+                    min-w-0 break-words rounded-xl border
                     border-red-200
                     bg-red-50 px-4 py-3
                     text-sm font-bold
@@ -451,7 +454,7 @@ function RestablecerPassword() {
                   !tokenValido
                 }
                 className="
-                  flex h-14 w-full
+                  flex min-h-12 w-full min-w-0
                   items-center justify-center
                   gap-2 rounded-xl
                   bg-emerald-700
@@ -487,9 +490,9 @@ function RestablecerPassword() {
           <Link
             to="/login"
             className="
-              mt-6 flex items-center
+              mt-5 flex min-h-11 flex-wrap items-center
               justify-center gap-2
-              text-sm font-black
+              text-center text-sm font-black
               text-emerald-700
               hover:text-emerald-900
             "
@@ -501,9 +504,9 @@ function RestablecerPassword() {
 
           <div
             className="
-              mt-6 flex items-center
+              mt-5 flex min-w-0 items-start
               gap-3 rounded-xl
-              bg-emerald-50 p-4
+              bg-emerald-50 p-3 sm:mt-6 sm:p-4
               text-emerald-800
             "
           >
@@ -552,7 +555,7 @@ function CampoPassword({
         {etiqueta}
       </label>
 
-      <div className="relative">
+      <div className="relative min-w-0">
         <Lock
           size={20}
           className="
@@ -583,10 +586,10 @@ function CampoPassword({
           }
           placeholder="Mínimo 8 caracteres"
           className="
-            h-14 w-full rounded-xl
+            h-14 w-full min-w-0 max-w-full rounded-xl
             border border-emerald-300
             pl-12 pr-4
-            text-sm font-semibold
+            text-base font-semibold
             outline-none transition
             focus:border-emerald-600
             focus:ring-4

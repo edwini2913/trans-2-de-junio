@@ -148,10 +148,11 @@ function RecuperarPassword() {
   return (
     <main
       className="
-        relative flex min-h-screen
+        relative flex min-h-screen min-h-[100dvh] w-full min-w-0
         items-center justify-center
-        overflow-hidden bg-cover
-        bg-center px-4 py-8
+        overflow-x-hidden bg-cover
+        bg-center px-3 py-4
+        sm:px-5 sm:py-8
       "
       style={{
         backgroundImage:
@@ -179,10 +180,10 @@ function RecuperarPassword() {
 
       <section
         className="
-          relative z-10 w-full
+          relative z-10 w-full min-w-0
           max-w-md overflow-hidden
-          rounded-[30px] bg-white
-          shadow-2xl
+          rounded-[22px] bg-white
+          shadow-2xl sm:rounded-[30px]
         "
       >
         <header
@@ -190,25 +191,25 @@ function RecuperarPassword() {
             bg-gradient-to-br
             from-emerald-800
             to-emerald-600
-            px-7 py-8 text-center
-            text-white
+            px-4 pb-6 pt-7 text-center
+            text-white sm:px-7 sm:py-8
           "
         >
           <img
             src={logo}
             alt="Logo Trans 2 de Junio"
             className="
-              mx-auto h-24 w-44
+              mx-auto h-20 w-36 max-w-full
               rounded-2xl bg-white
               object-contain p-2
-              shadow-lg
+              shadow-lg sm:h-24 sm:w-44
             "
           />
 
           <h1
             className="
-              mt-6 text-3xl
-              font-black
+              mt-4 break-words text-2xl
+              font-black leading-tight sm:mt-6 sm:text-3xl
             "
           >
             Recuperar contraseña
@@ -225,7 +226,7 @@ function RecuperarPassword() {
           </p>
         </header>
 
-        <div className="p-7">
+        <div className="min-w-0 p-4 min-[375px]:p-5 sm:p-7">
           {mensaje ? (
             <div className="text-center">
               <div
@@ -278,7 +279,7 @@ function RecuperarPassword() {
               onSubmit={
                 enviarSolicitud
               }
-              className="space-y-5"
+              className="min-w-0 space-y-5"
             >
               <div>
                 <label
@@ -321,11 +322,12 @@ function RecuperarPassword() {
                     }}
                     placeholder="ejemplo@correo.com"
                     className="
-                      h-14 w-full
+                      h-14 w-full min-w-0
                       rounded-xl border
                       border-emerald-300
                       pl-12 pr-4
-                      text-sm font-semibold
+                      text-base font-semibold
+                      text-slate-800 placeholder:text-slate-400
                       outline-none transition
                       focus:border-emerald-600
                       focus:ring-4
