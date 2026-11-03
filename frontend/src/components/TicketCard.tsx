@@ -132,7 +132,7 @@ function formatearMonto(
 function TicketCard({
   ticket,
   ticketRef,
-  mostrarDetallesInicialmente = false,
+  mostrarDetallesInicialmente = true,
   mostrarAcciones = true,
 }: TicketCardProps) {
   const [
@@ -251,20 +251,19 @@ function TicketCard({
   const estadoTicket =
     ticketPrincipal?.estado ??
     ventaPrincipal?.estado ??
-    "VALIDO";
+    "PENDIENTE";
 
+  const estadoNormalizado = String(estadoTicket).toUpperCase();
   const estadoVisual =
-    String(
-      estadoTicket,
-    ).toUpperCase() ===
-    "UTILIZADO"
+    estadoNormalizado === "UTILIZADO"
       ? "UTILIZADO"
-      : String(
-            estadoTicket,
-          ).toUpperCase() ===
-          "CANCELADO"
+      : ["CANCELADO", "CANCELADA", "RECHAZADO", "RECHAZADA", "VENCIDA"].includes(estadoNormalizado)
         ? "CANCELADO"
-        : "VÁLIDO";
+        : estadoNormalizado === "VALIDO" || estadoNormalizado === "VÁLIDO"
+          ? "VÁLIDO"
+          : ["CONFIRMADA", "CONFIRMADO", "APROBADA", "APROBADO"].includes(estadoNormalizado)
+            ? "CONFIRMADO"
+            : "PENDIENTE";
 
   const colorEstado =
     estadoVisual === "UTILIZADO"
@@ -272,7 +271,9 @@ function TicketCard({
       : estadoVisual ===
           "CANCELADO"
         ? "text-red-600"
-        : "text-emerald-700";
+        : estadoVisual === "PENDIENTE"
+          ? "text-slate-500"
+          : "text-emerald-700";
 
   const descargarQr = () => {
     if (!qr) {
@@ -319,42 +320,42 @@ function TicketCard({
         id={idTicket}
         className="box-border w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-emerald-700 bg-white text-slate-950 shadow-sm sm:rounded-[28px] sm:border-2 sm:shadow-lg print:rounded-none print:border print:shadow-none"
       >
-        <div className="min-w-0 p-2 min-[375px]:p-2.5 sm:p-6">
+        <div className="min-w-0 p-1.5 min-[375px]:p-2.5 sm:p-6">
           {/* ENCABEZADO */}
 
-          <header className="relative grid min-w-0 gap-2 overflow-hidden border-b-2 border-emerald-700 pb-3 sm:gap-5 sm:pb-6 lg:grid-cols-[190px_minmax(0,1fr)_310px]">
+          <header className="relative grid min-w-0 grid-cols-[48px_minmax(0,1fr)_88px] items-center gap-1.5 overflow-hidden border-b-2 border-emerald-700 pb-2.5 min-[390px]:grid-cols-[60px_minmax(0,1fr)_105px] sm:gap-4 sm:pb-5 lg:grid-cols-[190px_minmax(0,1fr)_310px]">
             <div className="pointer-events-none absolute -left-20 -top-24 h-52 w-52 rounded-full bg-emerald-100/50" />
 
             <div className="relative flex items-center justify-center">
               <img
                 src={logo}
                 alt="Logo Servicio de Transporte 2 de Junio"
-                className="h-11 w-auto max-w-[84px] object-contain drop-shadow-sm min-[375px]:h-14 sm:max-h-28 sm:h-auto sm:max-w-[150px] lg:max-h-36 lg:max-w-[180px]"
+                className="h-auto w-full max-w-[56px] object-contain drop-shadow-sm min-[390px]:max-w-[66px] sm:max-w-[150px] lg:max-w-[180px]"
               />
             </div>
 
             <div className="relative min-w-0 text-center">
-              <p className="text-[10px] font-black uppercase tracking-[0.03em] text-emerald-700 min-[375px]:text-xs sm:text-lg md:text-xl">
+              <p className="text-[7px] font-black uppercase leading-tight tracking-normal text-emerald-700 min-[390px]:text-[9px] sm:text-lg md:text-xl">
                 Servicio de Transporte
               </p>
 
-              <h1 className="mt-0.5 text-[26px] font-black leading-none text-emerald-800 min-[375px]:text-3xl sm:text-5xl md:text-7xl">
+              <h1 className="mt-0.5 text-[18px] font-black leading-none text-emerald-800 min-[390px]:text-[23px] sm:text-5xl md:text-7xl">
                 2 de Junio
               </h1>
 
-              <div className="mt-2 rounded-lg bg-gradient-to-r from-emerald-800 to-emerald-600 px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-white shadow-sm min-[375px]:text-xs sm:mt-4 sm:rounded-xl sm:px-5 sm:py-3 sm:text-lg md:text-xl">
+              <div className="mt-1 rounded bg-gradient-to-r from-emerald-800 to-emerald-600 px-1 py-1 text-[7px] font-black uppercase leading-tight tracking-normal text-white shadow-sm min-[390px]:text-[8px] sm:mt-4 sm:rounded-xl sm:px-5 sm:py-3 sm:text-lg md:text-xl">
                 Boleto Electrónico
                 Oficial
               </div>
             </div>
 
-            <div className="relative grid min-w-0 grid-cols-2 gap-1.5 sm:gap-4 lg:grid-cols-1">
+            <div className="relative grid min-w-0 grid-cols-1 gap-1 sm:gap-3 lg:grid-cols-1">
               <div className="min-w-0 overflow-hidden rounded-xl border border-emerald-700 bg-white shadow-sm sm:rounded-2xl sm:border-2">
-                <p className="bg-emerald-700 px-1 py-2 text-center text-[10px] font-black uppercase text-white min-[375px]:text-xs sm:px-4 sm:text-base">
+                <p className="bg-emerald-700 px-1 py-1 text-center text-[8px] font-black uppercase text-white sm:px-4 sm:py-2 sm:text-base">
                   Ticket N.º
                 </p>
 
-                <p className="break-all px-1 py-2 text-center text-xs font-black min-[375px]:text-sm sm:px-4 sm:py-3 sm:text-xl">
+                <p className="truncate px-1 py-1 text-center text-[9px] font-black sm:whitespace-normal sm:break-all sm:px-4 sm:py-3 sm:text-xl">
                   {obtenerTexto(
                     numeroTicket,
                   )}
@@ -362,11 +363,11 @@ function TicketCard({
               </div>
 
               <div className="min-w-0 overflow-hidden rounded-xl border border-emerald-700 bg-white shadow-sm sm:rounded-2xl sm:border-2">
-                <p className="bg-emerald-700 px-1 py-2 text-center text-[10px] font-black uppercase text-white min-[375px]:text-xs sm:px-4 sm:text-base">
+                <p className="bg-emerald-700 px-1 py-1 text-center text-[8px] font-black uppercase text-white sm:px-4 sm:py-2 sm:text-base">
                   Reserva N.º
                 </p>
 
-                <p className="break-all px-1 py-2 text-center text-xs font-black min-[375px]:text-sm sm:px-4 sm:py-3 sm:text-lg">
+                <p className="truncate px-1 py-1 text-center text-[8px] font-black sm:whitespace-normal sm:break-all sm:px-4 sm:py-3 sm:text-lg">
                   {obtenerTexto(
                     codigoReserva,
                   )}
@@ -377,15 +378,15 @@ function TicketCard({
 
           {/* SECCIÓN PRINCIPAL */}
 
-          <section className="grid min-w-0 grid-cols-1 gap-2 py-3 sm:gap-5 sm:py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)]">
+          <section className="grid min-w-0 grid-cols-[minmax(0,0.92fr)_minmax(0,1.18fr)_minmax(0,0.95fr)] items-stretch gap-1.5 py-2.5 sm:gap-4 sm:py-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)]">
             {/* PASAJERO */}
 
             <article className="min-w-0 overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/40 sm:rounded-2xl">
-              <h2 className="bg-emerald-700 px-3 py-2.5 text-center text-sm font-black uppercase tracking-wide text-white sm:px-4 sm:py-3 sm:text-lg">
+              <h2 className="bg-emerald-700 px-1 py-1.5 text-center text-[8px] font-black uppercase leading-tight tracking-normal text-white sm:px-4 sm:py-3 sm:text-lg">
                 Datos del pasajero
               </h2>
 
-              <div className="grid min-w-0 grid-cols-2 gap-x-2 gap-y-3 p-2.5 sm:gap-4 sm:p-5 lg:grid-cols-1">
+              <div className="grid min-w-0 grid-cols-1 gap-1.5 p-1.5 min-[390px]:gap-2 sm:gap-4 sm:p-5">
                 <Dato
                   icono={
                     <CircleUserRound
@@ -442,13 +443,13 @@ function TicketCard({
 
             {/* QR */}
 
-            <article className="order-first flex min-w-0 flex-col items-center justify-center lg:order-none">
-              <div className="flex w-full min-w-0 items-center justify-center rounded-xl border border-emerald-700 bg-white p-2 shadow-inner sm:min-h-[330px] sm:rounded-2xl sm:border-[3px] sm:p-5">
+            <article className="flex min-w-0 flex-col items-center justify-center">
+              <div className="flex w-full min-w-0 items-center justify-center rounded-md border border-emerald-700 bg-white p-1 shadow-inner sm:min-h-[330px] sm:rounded-2xl sm:border-[3px] sm:p-5">
                 {qr ? (
                   <img
                     src={qr}
                     alt="Código QR para validar el ticket"
-                    className="block aspect-square h-auto w-full max-w-[210px] object-contain min-[400px]:max-w-[240px] sm:max-w-[300px]"
+                    className="block aspect-square h-auto w-full max-w-[210px] object-contain sm:max-w-[300px]"
                   />
                 ) : (
                   <div className="text-center text-slate-500">
@@ -464,21 +465,21 @@ function TicketCard({
                 )}
               </div>
 
-              <div className="mt-1.5 w-full rounded-lg bg-emerald-700 px-2 py-2 text-center text-[11px] font-black uppercase tracking-wide text-white sm:mt-3 sm:rounded-xl sm:px-5 sm:py-3 sm:text-base">
+              <div className="mt-1 w-full rounded bg-emerald-700 px-0.5 py-1 text-center text-[7px] font-black uppercase leading-tight text-white sm:mt-3 sm:rounded-xl sm:px-5 sm:py-3 sm:text-base">
                 Escanea para validar
               </div>
             </article>
 
             {/* EMISIÓN Y MONTO */}
 
-            <article className="grid min-w-0 grid-cols-2 items-center gap-2 sm:gap-5 lg:flex lg:flex-col lg:justify-between">
+            <article className="flex min-w-0 flex-col justify-around gap-1.5 sm:gap-5">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700 sm:text-base">
+                <p className="text-[8px] font-black uppercase leading-tight tracking-normal text-emerald-700 sm:text-base">
                   Fecha y hora de
                   emisión
                 </p>
 
-                <p className="mt-1 break-words text-xs font-black sm:text-xl">
+                <p className="mt-0.5 break-words text-[9px] font-bold leading-tight sm:text-xl">
                   {formatearFechaHora(
                     ventaPrincipal
                       ?.fechaVenta ??
@@ -491,11 +492,11 @@ function TicketCard({
               </div>
 
               <div className="min-w-0 overflow-hidden rounded-xl border border-emerald-700 bg-white shadow-sm sm:rounded-2xl sm:border-[3px]">
-                <p className="bg-emerald-700 px-1 py-1.5 text-center text-[10px] font-black uppercase text-white sm:px-5 sm:py-3 sm:text-lg">
+                <p className="bg-emerald-700 px-1 py-1 text-center text-[8px] font-black uppercase leading-tight text-white sm:px-5 sm:py-3 sm:text-lg">
                   Monto pagado
                 </p>
 
-                <p className="break-words px-1 py-2 text-center text-lg font-black sm:px-5 sm:py-7 sm:text-5xl">
+                <p className="break-words px-0.5 py-1.5 text-center text-[13px] font-black leading-tight min-[390px]:text-base sm:px-5 sm:py-7 sm:text-5xl">
                   Bs.{" "}
                   {formatearMonto(
                     monto,
@@ -504,13 +505,14 @@ function TicketCard({
               </div>
 
               <div
-                className={`col-span-2 flex min-w-0 flex-wrap items-center justify-center gap-2 rounded-lg bg-slate-50 py-1 sm:gap-4 sm:bg-transparent lg:col-span-1 ${colorEstado}`}
+                className={`flex min-w-0 flex-wrap items-center justify-center gap-1 rounded-lg bg-slate-50 py-1 sm:gap-4 sm:bg-transparent ${colorEstado}`}
               >
                 <CheckCircle2
-                  size={40}
+                  size={23}
+                  className="shrink-0 sm:h-10 sm:w-10"
                 />
 
-                <span className="break-words text-center text-base font-black uppercase sm:text-4xl">
+                <span className="break-words text-center text-[11px] font-black uppercase sm:text-4xl">
                   {estadoVisual}
                 </span>
               </div>
@@ -521,7 +523,7 @@ function TicketCard({
             <div className="border-t-2 border-emerald-700">
               {/* INFORMACIÓN DEL VIAJE */}
 
-              <section className="grid min-w-0 grid-cols-2 gap-1.5 border-b-2 border-emerald-700 py-3 sm:gap-5 sm:py-5 xl:grid-cols-4">
+              <section className="grid min-w-0 grid-cols-4 gap-1 border-b-2 border-emerald-700 py-2 sm:gap-5 sm:py-5">
                 <CajaInformacion
                   icono={
                     <MapPin size={30} />
@@ -573,13 +575,13 @@ function TicketCard({
 
               {/* VEHÍCULO Y VENTA */}
 
-              <section className="grid min-w-0 gap-3 border-b border-emerald-200 py-4 sm:gap-5 sm:py-5 lg:grid-cols-2">
+              <section className="grid min-w-0 grid-cols-2 gap-1.5 border-b border-emerald-200 py-2 sm:gap-5 sm:py-5">
                 <article className="min-w-0 overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/30 sm:rounded-2xl">
-                  <h2 className="bg-emerald-700 px-2 py-2.5 text-center text-sm font-black uppercase text-white sm:px-4 sm:py-3 sm:text-lg">
+                  <h2 className="bg-emerald-700 px-1 py-1.5 text-center text-[9px] font-black uppercase leading-tight text-white sm:px-4 sm:py-3 sm:text-lg">
                     Vehículo
                   </h2>
 
-                  <div className="grid min-w-0 gap-3 p-3 min-[410px]:grid-cols-2 sm:gap-5 sm:p-5 xl:grid-cols-3">
+                  <div className="grid min-w-0 grid-cols-1 gap-1.5 p-2 sm:gap-5 sm:p-5 xl:grid-cols-3">
                     <Dato
                       icono={
                         <BusFront
@@ -625,12 +627,12 @@ function TicketCard({
                 </article>
 
                 <article className="min-w-0 overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/30 sm:rounded-2xl">
-                  <h2 className="bg-emerald-700 px-2 py-2.5 text-center text-sm font-black uppercase text-white sm:px-4 sm:py-3 sm:text-lg">
+                  <h2 className="bg-emerald-700 px-1 py-1.5 text-center text-[9px] font-black uppercase leading-tight text-white sm:px-4 sm:py-3 sm:text-lg">
                     Información de la
                     operación
                   </h2>
 
-                  <div className="grid min-w-0 gap-3 p-3 min-[410px]:grid-cols-2 sm:gap-5 sm:p-5 xl:grid-cols-3">
+                  <div className="grid min-w-0 grid-cols-1 gap-1.5 p-2 sm:gap-5 sm:p-5 xl:grid-cols-3">
                     <Dato
                       icono={
                         <ReceiptText
@@ -674,14 +676,14 @@ function TicketCard({
 
               {/* PIE */}
 
-              <footer className="pt-5">
-                <div className="grid min-w-0 items-end gap-3 sm:gap-5 md:grid-cols-3">
+              <footer className="pt-2 sm:pt-5">
+                <div className="grid min-w-0 grid-cols-[1fr_1.1fr_0.8fr] items-start gap-1.5 sm:gap-5">
                   <div>
-                    <p className="font-black uppercase text-green-800">
+                    <p className="text-[8px] font-black uppercase text-green-800 sm:text-base">
                       Importante
                     </p>
 
-                    <ul className="text-sm leading-6">
+                    <ul className="text-[7px] leading-tight sm:text-sm sm:leading-6">
                       <li>
                         • Presente este
                         boleto al abordar.
@@ -705,21 +707,21 @@ function TicketCard({
                     </ul>
                   </div>
 
-                  <div className="text-center">
-                    <p className="text-lg font-black italic text-green-800 sm:text-2xl">
+                  <div className="min-w-0 text-center">
+                    <p className="text-[10px] font-black italic leading-tight text-green-800 sm:text-2xl">
                       Seguridad,
                       puntualidad y
                       confianza
                     </p>
 
-                    <p className="mt-2 text-sm italic sm:text-lg">
+                    <p className="mt-1 text-[8px] italic leading-tight sm:mt-2 sm:text-lg">
                       ¡Gracias por su
                       preferencia!
                     </p>
                   </div>
 
-                  <div className="text-left md:text-right">
-                    <p className="font-black uppercase text-green-800">
+                  <div className="min-w-0 text-right">
+                    <p className="text-[8px] font-black uppercase text-green-800 sm:text-base">
                       Atención al cliente
                     </p>
 
@@ -727,13 +729,13 @@ function TicketCard({
                       Oficina Central
                     </p>
 
-                    <p className="font-black">
+                    <p className="break-words text-[9px] font-black sm:text-base">
                       67599408
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-xl bg-gradient-to-r from-emerald-800 to-emerald-600 px-2 py-3 text-center text-xs font-black text-white sm:mt-5 sm:px-4 sm:text-lg">
+                <div className="mt-2 rounded bg-gradient-to-r from-emerald-800 to-emerald-600 px-1 py-1.5 text-center text-[9px] font-black text-white sm:mt-5 sm:rounded-xl sm:px-4 sm:py-3 sm:text-lg">
                   2 de Junio, llevando
                   destinos, uniendo
                   familias.
@@ -805,17 +807,17 @@ function Dato({
   valor,
 }: DatoProps) {
   return (
-    <div className="flex min-w-0 items-start gap-1.5 sm:gap-3">
-      <div className="shrink-0 text-emerald-700 [&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-7 sm:[&>svg]:w-7">
+    <div className="flex min-w-0 items-start gap-1 sm:gap-3">
+      <div className="shrink-0 text-emerald-700 [&>svg]:h-3 [&>svg]:w-3 sm:[&>svg]:h-7 sm:[&>svg]:w-7">
         {icono}
       </div>
 
       <div className="min-w-0">
-        <p className="text-[10px] font-black text-emerald-800 sm:text-base">
+        <p className="text-[8px] font-black leading-tight text-emerald-800 sm:text-base">
           {titulo}:
         </p>
 
-        <p className="break-all text-[11px] font-bold leading-4 sm:break-words sm:text-base">
+        <p className="break-all text-[8px] font-bold leading-tight sm:break-words sm:text-base">
           {obtenerTexto(valor)}
         </p>
       </div>
@@ -835,16 +837,16 @@ function CajaInformacion({
   contenido,
 }: CajaInformacionProps) {
   return (
-    <article className="min-w-0 rounded-lg border border-emerald-200 bg-emerald-50/40 p-2 sm:rounded-2xl sm:p-4">
-      <div className="flex min-w-0 flex-col gap-1 text-emerald-700 [&>svg]:h-4 [&>svg]:w-4 sm:flex-row sm:items-center sm:gap-3 sm:[&>svg]:h-7 sm:[&>svg]:w-7">
+    <article className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/40 p-1 sm:rounded-2xl sm:p-4">
+      <div className="flex min-w-0 flex-col gap-0.5 text-emerald-700 [&>svg]:h-3 [&>svg]:w-3 sm:flex-row sm:items-center sm:gap-3 sm:[&>svg]:h-7 sm:[&>svg]:w-7">
         {icono}
 
-        <h3 className="break-words text-[11px] font-black uppercase sm:text-base">
+        <h3 className="break-words text-[8px] font-black uppercase leading-tight sm:text-base">
           {titulo}
         </h3>
       </div>
 
-      <p className="mt-1.5 break-words text-[11px] font-black leading-4 sm:mt-3 sm:text-lg">
+      <p className="mt-1 break-words text-[8px] font-black leading-tight sm:mt-3 sm:text-lg">
         {contenido}
       </p>
     </article>

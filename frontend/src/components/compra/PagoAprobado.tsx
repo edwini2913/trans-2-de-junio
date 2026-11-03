@@ -156,6 +156,9 @@ function PagoAprobado({
           true,
         );
 
+        // Esperar a que las fuentes estén listas antes de capturar.
+        await document.fonts.ready;
+
         const imagen =
           await toPng(
             ticketRef.current,
@@ -163,7 +166,7 @@ function PagoAprobado({
               cacheBust: true,
               backgroundColor:
                 "#ffffff",
-              pixelRatio: 2,
+              pixelRatio: 3,
             },
           );
 
@@ -216,6 +219,9 @@ function PagoAprobado({
           true,
         );
 
+        // Conservar los textos y el QR completos en la imagen compartida.
+        await document.fonts.ready;
+
         const blob =
           await toBlob(
             ticketRef.current,
@@ -223,7 +229,7 @@ function PagoAprobado({
               cacheBust: true,
               backgroundColor:
                 "#ffffff",
-              pixelRatio: 2,
+              pixelRatio: 3,
             },
           );
 
@@ -303,29 +309,29 @@ function PagoAprobado({
     <section className="mt-3 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-emerald-100 bg-white text-slate-900 shadow-xl shadow-emerald-950/10 sm:mt-6 sm:rounded-[30px]">
       {/* ENCABEZADO */}
 
-      <header className="relative overflow-hidden bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-600 px-3 py-5 text-white sm:px-9 sm:py-8">
+      <header className="relative overflow-hidden bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-600 px-3 py-3 text-white sm:px-9 sm:py-8">
         <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border-[38px] border-white/[0.09]" />
 
         <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full border-[28px] border-emerald-200/[0.08]" />
 
         <div className="relative flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-white/35 bg-white/15 shadow-lg backdrop-blur-sm sm:h-20 sm:w-20 sm:border-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-white/35 bg-white/15 shadow-lg backdrop-blur-sm sm:h-20 sm:w-20 sm:border-4">
             <CheckCircle2
               size={34}
-              className="sm:h-12 sm:w-12"
+              className="h-7 w-7 sm:h-12 sm:w-12"
               aria-hidden="true"
             />
           </div>
 
-          <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 sm:mt-5 sm:text-xs sm:tracking-[0.24em]">
+          <p className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 sm:mt-5 sm:text-xs sm:tracking-[0.24em]">
             Verificación completada
           </p>
 
-          <h2 className="mt-2 text-2xl font-black leading-tight sm:text-4xl">
+          <h2 className="mt-1 text-xl font-black leading-tight sm:mt-2 sm:text-4xl">
             ¡Compra exitosa!
           </h2>
 
-          <p className="mt-2 max-w-xl text-xs font-medium leading-5 text-emerald-50 sm:text-sm sm:font-semibold sm:leading-6">
+          <p className="mt-1 max-w-xl text-xs font-medium leading-5 text-emerald-50 sm:mt-2 sm:text-sm sm:font-semibold sm:leading-6">
             La administradora aprobó
             el pago y tu ticket ya
             está disponible.
@@ -348,7 +354,7 @@ function PagoAprobado({
 
       {/* CONTENIDO */}
 
-      <div className="mx-auto w-full min-w-0 max-w-[1320px] p-2 sm:p-5 lg:p-8">
+      <div className="mx-auto w-full min-w-0 max-w-[1320px] p-1.5 min-[390px]:p-2 sm:p-5 lg:p-8">
         {/* TÍTULO DEL TICKET */}
 
         <div className="mb-3 flex min-w-0 items-center gap-2 px-1 sm:mb-4">
@@ -371,7 +377,7 @@ function PagoAprobado({
 
         {/* TICKET ADAPTABLE */}
 
-        <div className="w-full min-w-0 max-w-full rounded-xl border border-emerald-100 bg-emerald-50/40 p-1 sm:rounded-[28px] sm:p-4">
+        <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-emerald-100 bg-emerald-50/40 p-0.5 min-[390px]:p-1 sm:rounded-[28px] sm:p-4">
           {/*
            * Se elimina min-w-[1050px].
            *
@@ -399,7 +405,7 @@ function PagoAprobado({
               <Save size={20} />
             }
             texto="Guardar"
-            onClick={onGuardar}
+            onClick={onGuardar ?? (() => { void descargarTicketOficial(); })}
             disabled={
               procesandoImagen
             }
