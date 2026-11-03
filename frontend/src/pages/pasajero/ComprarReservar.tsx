@@ -92,6 +92,38 @@ function ComprarReservar() {
   const seccionResultadoPagoRef =
     useRef<HTMLDivElement | null>(null);
 
+  const seccionBusquedaRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const seccionHorariosRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const seccionAsientosRef =
+    useRef<HTMLElement | null>(null);
+
+  const seccionResumenRef =
+    useRef<HTMLElement | null>(null);
+
+  // Solo desplazar automáticamente cuando el pasajero
+  // selecciona un vehículo; no al cargar la página.
+  const esperandoAsientosRef = useRef(false);
+
+  const desplazarA = (
+    elemento: HTMLElement | null,
+  ) => {
+    if (!elemento) return;
+
+    // Respetar la preferencia de movimiento reducido.
+    const reducirMovimiento = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    elemento.scrollIntoView({
+      behavior: reducirMovimiento ? "auto" : "smooth",
+      block: "start",
+    });
+  };
+
   const [
     sectorTransporte,
     setSectorTransporte,
@@ -199,6 +231,39 @@ function ComprarReservar() {
     mostrarQR,
   ]);
 
+  // Esperar a que el mapa esté disponible antes de
+  // desplazar la pantalla tras elegir un vehículo.
+  useEffect(() => {
+    if (
+      !esperandoAsientosRef.current ||
+      !viaje ||
+      cargandoAsientos
+    ) {
+      return;
+    }
+
+    const temporizador = window.setTimeout(() => {
+      if (!esperandoAsientosRef.current) return;
+      esperandoAsientosRef.current = false;
+      desplazarA(seccionAsientosRef.current);
+    }, 200);
+
+    return () => window.clearTimeout(temporizador);
+  }, [viaje, cargandoAsientos]);
+
+  const seleccionarVehiculoYAvanzar = async (
+    vehiculoDisponible: VehiculoDisponible,
+    horaSalida: string,
+  ) => {
+    esperandoAsientosRef.current = true;
+    try {
+      await seleccionarVehiculo(vehiculoDisponible, horaSalida);
+    } catch (error) {
+      esperandoAsientosRef.current = false;
+      throw error;
+    }
+  };
+
   const cambiarSectorTransporte = (
     nuevoSector: SectorTransporteTipo,
   ) => {
@@ -209,8 +274,12 @@ function ComprarReservar() {
       return;
     }
 
+    esperandoAsientosRef.current = false;
     limpiarSeleccionViaje();
     setSectorTransporte(nuevoSector);
+    window.setTimeout(() => {
+      desplazarA(seccionBusquedaRef.current);
+    }, 180);
   };
 
   const seleccionarTurnoRapido =
@@ -255,17 +324,17 @@ function ComprarReservar() {
             true,
         };
 
-      await seleccionarVehiculo(
+      await seleccionarVehiculoYAvanzar(
         vehiculoDisponible,
         turno.viaje.horaSalida,
       );
     };
 
   return (
-    <div className="relative isolate min-h-screen overflow-hidden bg-[#f2f8f4] text-slate-900">
+    <div className="relative isolate min-h-screen w-full max-w-full overflow-x-clip bg-[#f2f8f4] text-slate-900">
       {/* NAVEGACIÓN */}
 
-      <nav className="sticky top-0 z-50 isolate overflow-hidden border-b border-lime-400/80 bg-gradient-to-r from-[#005c2e] via-[#00743a] to-[#008844] px-5 py-4 text-white shadow-xl shadow-emerald-950/10 backdrop-blur-xl lg:px-10">
+      <nav className="sticky top-0 z-50 isolate overflow-hidden border-b border-lime-400/80 bg-gradient-to-r from-[#005c2e] via-[#00743a] to-[#008844] px-3 py-2 sm:px-5 sm:py-4 text-white shadow-xl shadow-emerald-950/10 backdrop-blur-xl lg:px-10">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-[0.12]"
@@ -303,53 +372,53 @@ function ComprarReservar() {
           />
         </svg>
 
-        <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-2 sm:gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-lg backdrop-blur-sm">
-              <BusFront size={29} />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/15 shadow-lg backdrop-blur-sm sm:h-14 sm:w-14 sm:rounded-2xl">
+              <BusFront size={25} />
             </div>
 
             <div>
-              <h1 className="text-xl font-black tracking-tight">
+              <h1 className="text-base font-black tracking-tight sm:text-xl">
                 Trans 2 de Junio
               </h1>
 
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-100">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-100 sm:text-xs">
                 Sistema de pasajes
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 font-semibold text-emerald-50 sm:gap-3">
+          <div className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1 text-xs font-semibold text-emerald-50 sm:flex-wrap sm:gap-3 sm:pb-0 sm:text-base xl:w-auto">
             <Link
               to="/pasajero"
-              className="flex items-center gap-2 rounded-xl px-4 py-3 transition hover:bg-white/15 hover:text-white"
+              className="flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 transition hover:bg-white/15 hover:text-white sm:gap-2 sm:px-4 sm:py-3"
             >
               <Home size={18} />
               Inicio
             </Link>
 
-            <span className="flex items-center gap-2 rounded-xl border border-white/30 bg-white px-5 py-3 font-black text-emerald-800 shadow-lg">
+            <span className="flex shrink-0 items-center gap-1 rounded-xl border border-white/30 bg-white px-2.5 py-2 font-black text-emerald-800 shadow-lg sm:gap-2 sm:px-5 sm:py-3">
               <Ticket size={18} />
               Comprar / Reservar
             </span>
 
             <Link
               to="/pasajero/mis-reservas"
-              className="flex items-center gap-2 rounded-xl px-4 py-3 transition hover:bg-white/15 hover:text-white"
+              className="flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 transition hover:bg-white/15 hover:text-white sm:gap-2 sm:px-4 sm:py-3"
             >
               <CalendarDays size={18} />
               Mis Tickets
             </Link>
 
-            <span className="max-w-[190px] truncate rounded-xl bg-black/10 px-4 py-3 text-sm text-emerald-50">
+            <span className="hidden max-w-[190px] truncate rounded-xl bg-black/10 px-4 py-3 text-sm text-emerald-50 md:block">
               {usuario.email || "pasajero"}
             </span>
 
             <button
               type="button"
               onClick={cerrarSesion}
-              className="flex items-center gap-2 rounded-xl px-4 py-3 transition hover:bg-red-500/20 hover:text-red-100"
+              className="flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 transition hover:bg-red-500/20 hover:text-red-100 sm:gap-2 sm:px-4 sm:py-3"
             >
               <LogOut size={18} />
               Salir
@@ -360,10 +429,10 @@ function ComprarReservar() {
 
       <FondoCompraDecorativo />
 
-      <main className="relative z-10 mx-auto max-w-[1500px] px-5 py-8 sm:px-7 lg:px-10">
+      <main className="relative z-10 mx-auto max-w-[1500px] px-3 py-4 sm:px-7 sm:py-8 lg:px-10">
         {/* ENCABEZADO */}
 
-        <header className="relative mb-8 overflow-hidden rounded-[28px] bg-gradient-to-r from-[#006331] via-[#007a3d] to-[#009149] px-6 py-8 text-white shadow-xl shadow-emerald-900/15 sm:px-9">
+        <header className="relative mb-4 overflow-hidden rounded-2xl sm:mb-8 sm:rounded-[28px] bg-gradient-to-r from-[#006331] via-[#007a3d] to-[#009149] px-4 py-5 text-white shadow-xl shadow-emerald-900/15 sm:px-9">
           <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border-[40px] border-white/5" />
 
           <div className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-96 rotate-[-8deg] rounded-[50%] bg-lime-300/10" />
@@ -399,7 +468,7 @@ function ComprarReservar() {
                 Reserva tu próximo viaje
               </p>
 
-              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+              <h2 className="mt-2 text-xl font-black tracking-tight sm:text-4xl">
                 Comprar o Reservar Pasaje
               </h2>
 
@@ -465,7 +534,8 @@ function ComprarReservar() {
 
         {/* RUTA Y FECHA */}
 
-        <BusquedaViaje
+        <div ref={seccionBusquedaRef} className="scroll-mt-32 sm:scroll-mt-40">
+          <BusquedaViaje
           rutas={rutas}
           rutaId={rutaId}
           fecha={fecha}
@@ -476,15 +546,27 @@ function ComprarReservar() {
             cargandoRutas
           }
           bloqueado={bloqueado}
-          onCambiarRuta={
-            cambiarRuta
-          }
-          onCambiarFecha={
-            cambiarFecha
-          }
-        />
+          onCambiarRuta={(nuevoId) => {
+            esperandoAsientosRef.current = false;
+            cambiarRuta(nuevoId);
+            // Ruta y fecha comparten formulario: mantenerlo visible.
+            window.setTimeout(() => {
+              desplazarA(seccionBusquedaRef.current);
+            }, 120);
+          }}
+          onCambiarFecha={(nuevaFecha) => {
+            esperandoAsientosRef.current = false;
+            cambiarFecha(nuevaFecha);
+            // Al definir la fecha, mostrar horarios/vehículos.
+            window.setTimeout(() => {
+              desplazarA(seccionHorariosRef.current);
+            }, 240);
+          }}
+          />
+        </div>
 
         {/* SECTOR FLOTAS */}
+        <div ref={seccionHorariosRef} className="scroll-mt-32 sm:scroll-mt-40">
 
         {sectorTransporte ===
           "FLOTA" && (
@@ -506,14 +588,18 @@ function ComprarReservar() {
                 cargandoViajes
               }
               bloqueado={bloqueado}
-              onSeleccionarHorario={
-                seleccionarHorario
-              }
+              onSeleccionarHorario={(horario) => {
+                seleccionarHorario(horario);
+                // Vehículos se muestran dentro de HorariosSalida.
+                window.setTimeout(() => {
+                  desplazarA(seccionHorariosRef.current);
+                }, 160);
+              }}
               onSeleccionarVehiculo={(
                 vehiculoDisponible,
                 horaSalida,
               ) =>
-                void seleccionarVehiculo(
+                void seleccionarVehiculoYAvanzar(
                   vehiculoDisponible,
                   horaSalida,
                 )
@@ -548,6 +634,8 @@ function ComprarReservar() {
           />
         )}
 
+        </div>
+
         {/* INFORMACIÓN DEL VIAJE */}
 
         {viaje && (
@@ -567,7 +655,7 @@ function ComprarReservar() {
         {/* MAPA DE ASIENTOS */}
 
         {paso >= 3 && viaje && (
-          <section className="mt-6">
+          <section ref={seccionAsientosRef} className="mt-4 scroll-mt-32 sm:mt-6 sm:scroll-mt-40">
             {cargandoAsientos ? (
               <CargandoComponente mensaje="Cargando mapa de asientos..." />
             ) : (
@@ -594,6 +682,16 @@ function ComprarReservar() {
                   }
                 />
               </Suspense>
+            )}
+            {cantidadAsientos > 0 && !bloqueado && !mostrarQR && (
+              <button
+                type="button"
+                onClick={() => desplazarA(seccionResumenRef.current)}
+                className="sticky bottom-3 z-20 mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-4 text-sm font-black text-white shadow-lg shadow-emerald-950/20 hover:bg-emerald-800 sm:static sm:text-base"
+              >
+                Continuar con {cantidadAsientos} {cantidadAsientos === 1 ? "asiento" : "asientos"}
+                <CheckCircle2 size={20} />
+              </button>
             )}
           </section>
         )}
@@ -627,7 +725,7 @@ function ComprarReservar() {
               mostrarQR
             )
           ) && (
-            <section className="mt-6 space-y-6">
+            <section ref={seccionResumenRef} className="mt-4 scroll-mt-32 space-y-4 sm:mt-6 sm:scroll-mt-40 sm:space-y-6">
               {modoOperacion ===
               "COMPRA" ? (
                 <>

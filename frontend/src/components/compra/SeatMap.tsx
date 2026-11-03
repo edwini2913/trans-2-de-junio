@@ -84,17 +84,16 @@ function SeatMap({
     }
   ).length;
 
-  const esNoah = identificarNoah(vehiculo);
-  const esHiace = identificarHiace(vehiculo);
-  const esVehiculoRapido =
-    esNoah || esHiace;
+  const esNoah = identificarTipo(vehiculo, "NOAH");
+  const esHiace = identificarTipo(vehiculo, "HIACE");
+  const rapido = esNoah || esHiace;
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-xl shadow-emerald-950/5">
-      <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-700 via-emerald-600 to-lime-500 px-5 py-6 text-white sm:px-7 md:px-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-lg backdrop-blur-sm">
+    <section className="min-w-0 max-w-full overflow-hidden rounded-[20px] border border-emerald-100 bg-white shadow-xl shadow-emerald-950/5 sm:rounded-[28px]">
+      <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-700 via-emerald-600 to-lime-500 px-3 py-4 text-white sm:px-7 md:px-8">
+        <div className="flex min-w-0 flex-col gap-3 sm:gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-2 sm:gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 shadow-lg backdrop-blur-sm sm:h-14 sm:w-14 sm:rounded-2xl">
               <Armchair size={29} />
             </div>
 
@@ -103,11 +102,11 @@ function SeatMap({
                 Selección de asientos
               </p>
 
-              <h2 className="mt-1 text-3xl font-black leading-tight sm:text-4xl">
+              <h2 className="mt-1 text-xl font-black leading-tight sm:text-4xl">
                 Elija sus asientos
               </h2>
 
-              <p className="mt-2 max-w-2xl text-sm font-medium text-emerald-50/90 sm:text-base">
+              <p className="mt-1 max-w-2xl text-xs font-medium text-emerald-50/90 sm:mt-2 sm:text-base">
                 Seleccione uno o varios asientos
                 disponibles para continuar con su
                 compra.
@@ -115,7 +114,7 @@ function SeatMap({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:gap-2 xl:grid-cols-4">
             <Leyenda
               color="bg-emerald-500"
               texto={`Disponibles (${disponibles})`}
@@ -139,13 +138,13 @@ function SeatMap({
         </div>
       </div>
 
-      <div className="p-5 sm:p-7 md:p-8">
+      <div className="min-w-0 p-1.5 sm:p-7 md:p-8">
         {vehiculo && (
-          <div className="mb-7 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mb-3 min-w-0 rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5 sm:mb-7 sm:rounded-2xl sm:p-4">
+            <div className="flex min-w-0 flex-col gap-2 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white">
-                  {esVehiculoRapido ? (
+                  {rapido ? (
                     <CarFront size={24} />
                   ) : (
                     <BusFront size={24} />
@@ -157,25 +156,22 @@ function SeatMap({
                     Vehículo asignado
                   </p>
 
-                  <h3 className="mt-1 text-lg font-black text-slate-900">
+                  <h3 className="mt-1 break-words text-base font-black text-slate-900 sm:text-lg">
                     {obtenerNombreVehiculo(
                       vehiculo,
-                      esNoah,
-                      esHiace
+                      esNoah, esHiace
                     )}
                   </h3>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 <DatoVehiculo
                   titulo="Tipo"
                   valor={
-                    esHiace
-                      ? "Toyota Hiace"
-                      : esNoah
-                        ? "Toyota Noah"
-                        : vehiculo.tipo || "Flota"
+                    esHiace ? "Toyota Hiace" : esNoah
+                      ? "Toyota Noah"
+                      : vehiculo.tipo || "Flota"
                   }
                 />
 
@@ -199,20 +195,20 @@ function SeatMap({
 
         <div
           className={[
-            "grid gap-7",
-            esVehiculoRapido
+            "grid min-w-0 grid-cols-1 gap-2 sm:gap-7",
+            rapido
               ? "xl:grid-cols-[minmax(390px,650px)_310px]"
               : "xl:grid-cols-[minmax(520px,760px)_310px]",
             "xl:justify-center",
           ].join(" ")}
         >
-          <div className="overflow-x-auto pb-3">
-            {esVehiculoRapido ? (
+          <div className="min-w-0 max-w-full pb-2 sm:pb-3">
+            {rapido ? (
               <MapaNoah
+                esHiace={esHiace}
                 asientos={asientos}
                 seleccionados={seleccionados}
                 bloqueado={bloqueado}
-                esHiace={esHiace}
                 onSeleccionar={onSeleccionar}
               />
             ) : (
@@ -239,16 +235,16 @@ function SeatMap({
 }
 
 function MapaNoah({
+  esHiace,
   asientos,
   seleccionados,
   bloqueado,
-  esHiace,
   onSeleccionar,
 }: {
+  esHiace: boolean;
   asientos: AsientoCompra[];
   seleccionados: string[];
   bloqueado: boolean;
-  esHiace: boolean;
   onSeleccionar: (
     asiento: AsientoCompra
   ) => void;
@@ -265,10 +261,10 @@ function MapaNoah({
   };
 
   return (
-    <div className="mx-auto min-w-[288px] max-w-[580px] px-1">
-      <div className="relative overflow-hidden rounded-[58px_58px_28px_28px] border-[4px] border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-2 shadow-[0_25px_65px_rgba(15,23,42,0.18)] sm:rounded-[95px_95px_38px_38px] sm:border-[5px] sm:p-4">
-        <div className="rounded-[44px_44px_20px_20px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-3 pb-5 pt-6 shadow-inner sm:rounded-[68px_68px_24px_24px] sm:px-6 sm:pb-6 sm:pt-8">
-          <div className="mb-6 flex items-center justify-center gap-3 text-emerald-800">
+    <div className="mx-auto w-full min-w-0 max-w-[580px] px-0 sm:px-1">
+      <div className="relative min-w-0 overflow-hidden rounded-[36px_36px_18px_18px] border-2 border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-1.5 shadow-[0_18px_35px_rgba(15,23,42,0.15)] sm:rounded-[95px_95px_38px_38px] sm:border-[5px] sm:p-4">
+        <div className="rounded-[30px_30px_14px_14px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-1.5 pb-3 pt-4 shadow-inner sm:rounded-[68px_68px_24px_24px] sm:px-6 sm:pb-6 sm:pt-8">
+          <div className="mb-3 flex items-center justify-center gap-2 text-emerald-800 sm:mb-6 sm:gap-3">
             <CarFront size={29} />
 
             <span className="text-sm font-black uppercase tracking-[0.14em]">
@@ -276,7 +272,7 @@ function MapaNoah({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 items-end gap-3 sm:gap-8">
+          <div className="grid min-w-0 grid-cols-2 items-end gap-2 sm:gap-8">
             <div className="flex flex-col items-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
                 <CircleGauge size={35} />
@@ -305,8 +301,8 @@ function MapaNoah({
           </div>
         </div>
 
-        <div className="mt-3 rounded-3xl border border-slate-200 bg-white px-2 pb-6 pt-5 shadow-inner sm:mt-4 sm:px-5 sm:pb-7 sm:pt-6">
-          <div className="space-y-7">
+        <div className="mt-2 min-w-0 rounded-2xl border border-slate-200 bg-white px-1 pb-4 pt-3 shadow-inner sm:mt-4 sm:rounded-3xl sm:px-5 sm:pb-7 sm:pt-6">
+          <div className="space-y-3 sm:space-y-7">
             <FilaNoah
               asientos={[
                 obtenerAsiento(2),
@@ -328,18 +324,9 @@ function MapaNoah({
               bloqueado={bloqueado}
               onSeleccionar={onSeleccionar}
             />
-
             {esHiace && (
-              <FilaNoah
-                asientos={[
-                  obtenerAsiento(8),
-                  obtenerAsiento(9),
-                  obtenerAsiento(10),
-                ]}
-                seleccionados={seleccionados}
-                bloqueado={bloqueado}
-                onSeleccionar={onSeleccionar}
-              />
+              <FilaNoah asientos={[obtenerAsiento(8), obtenerAsiento(9), obtenerAsiento(10)]}
+                seleccionados={seleccionados} bloqueado={bloqueado} onSeleccionar={onSeleccionar} />
             )}
           </div>
 
@@ -368,7 +355,7 @@ function FilaNoah({
   ) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 items-center gap-2 sm:gap-5">
+    <div className="grid min-w-0 grid-cols-3 items-center gap-1.5 sm:gap-5">
       {asientos.map((asiento, indice) => (
         <AsientoBoton
           key={asiento?.id || `vacio-${indice}`}
@@ -400,10 +387,10 @@ function MapaFlota({
   const filas = crearFilasBus(asientos);
 
   return (
-    <div className="mx-auto min-w-[292px] max-w-[700px] px-1">
-      <div className="relative overflow-hidden rounded-[58px_58px_28px_28px] border-[4px] border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-2 shadow-[0_25px_65px_rgba(15,23,42,0.18)] sm:rounded-[105px_105px_40px_40px] sm:border-[5px] sm:p-4">
-        <div className="rounded-[44px_44px_20px_20px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-3 pb-5 pt-6 shadow-inner sm:rounded-[78px_78px_24px_24px] sm:px-8 sm:pb-6 sm:pt-8">
-          <div className="mb-5 flex items-center justify-center gap-3 text-emerald-800">
+    <div className="mx-auto w-full min-w-0 max-w-[700px] px-0 sm:px-1">
+      <div className="relative min-w-0 overflow-hidden rounded-[36px_36px_18px_18px] border-2 border-slate-300 bg-gradient-to-b from-slate-100 via-white to-slate-100 p-1 shadow-[0_18px_35px_rgba(15,23,42,0.15)] sm:rounded-[105px_105px_40px_40px] sm:border-[5px] sm:p-4">
+        <div className="rounded-[30px_30px_14px_14px] border border-emerald-100 bg-gradient-to-b from-emerald-50 to-white px-1.5 pb-3 pt-4 shadow-inner sm:rounded-[78px_78px_24px_24px] sm:px-8 sm:pb-6 sm:pt-8">
+          <div className="mb-3 flex items-center justify-center gap-2 text-emerald-800 sm:mb-5 sm:gap-3">
             <BusFront size={30} />
 
             <span className="text-sm font-black uppercase tracking-[0.14em]">
@@ -411,7 +398,7 @@ function MapaFlota({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-8">
+          <div className="grid grid-cols-2 gap-2 sm:gap-8">
             <div className="flex flex-col items-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
                 <CircleGauge size={36} />
@@ -440,15 +427,16 @@ function MapaFlota({
           </div>
         </div>
 
-        <div className="relative mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white px-3 pb-6 pt-4 shadow-inner">
-          <div className="pointer-events-none absolute bottom-0 left-1/2 top-0 w-20 -translate-x-1/2 bg-gradient-to-b from-emerald-100 via-emerald-50 to-emerald-100" />
+        <div className="[--pasillo:14px] sm:[--pasillo:74px] relative mt-2 min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white px-1 pb-4 pt-3 shadow-inner sm:mt-4 sm:rounded-3xl sm:px-3 sm:pb-6 sm:pt-4">
+          <div className="pointer-events-none absolute bottom-0 left-1/2 top-0 w-[var(--pasillo)] -translate-x-1/2 bg-gradient-to-b from-emerald-100 via-emerald-50 to-emerald-100" />
 
-          <div className="relative z-10 space-y-4">
+          <div className="relative z-10 space-y-2.5 sm:space-y-4">
             {filas.length > 0 ? (
               filas.map((fila, indice) => (
                 <div
                   key={indice}
-                  className="grid grid-cols-[1fr_1fr_42px_1fr_1fr] items-center gap-1 sm:grid-cols-[1fr_1fr_74px_1fr_1fr] sm:gap-3"
+                  style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr)) var(--pasillo, 26px) repeat(2, minmax(0, 1fr))" }}
+                  className="min-w-0 items-center gap-x-1 sm:gap-x-3"
                 >
                   <AsientoBoton
                     asiento={fila.izquierda1}
@@ -471,8 +459,8 @@ function MapaFlota({
                   />
 
                   <div className="flex h-full items-center justify-center">
-                    <span className="rounded-lg bg-emerald-700 px-2 py-2 text-center text-[10px] font-black uppercase tracking-wide text-white shadow-sm">
-                      Fila {indice + 1}
+                    <span className="rounded-md bg-emerald-700 px-0.5 py-1 text-center text-[9px] font-black text-white shadow-sm sm:rounded-lg sm:px-2 sm:py-2 sm:text-[10px]">
+                      <span className="sr-only sm:not-sr-only">Fila </span>{indice + 1}
                     </span>
                   </div>
 
@@ -534,9 +522,9 @@ function ResumenSeleccion({
   ) => void;
 }) {
   return (
-    <aside className="space-y-5">
+    <aside className="min-w-0 space-y-3 sm:space-y-5">
       <div className="overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-lg shadow-emerald-950/5">
-        <div className="border-b border-emerald-100 bg-emerald-50 px-6 py-5">
+        <div className="border-b border-emerald-100 bg-emerald-50 px-3 py-3 sm:px-6 sm:py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-700 text-white">
               <Users size={23} />
@@ -554,10 +542,10 @@ function ResumenSeleccion({
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-3 sm:p-6">
           {asientosSeleccionados.length > 0 ? (
             <>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2 sm:gap-3">
                 {asientosSeleccionados.map(
                   (asiento) => (
                     <button
@@ -584,13 +572,13 @@ function ResumenSeleccion({
                 )}
               </div>
 
-              <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
+              <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 sm:mt-6 sm:p-5">
                 <p className="text-sm font-semibold text-emerald-700">
                   Cantidad seleccionada
                 </p>
 
                 <div className="mt-2 flex items-end justify-between gap-4">
-                  <p className="text-5xl font-black leading-none text-emerald-800">
+                  <p className="text-3xl font-black leading-none text-emerald-800 sm:text-5xl">
                     {asientosSeleccionados.length}
                   </p>
 
@@ -622,7 +610,7 @@ function ResumenSeleccion({
         </div>
       </div>
 
-      <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm sm:rounded-3xl sm:p-6">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white">
             <Info size={21} />
@@ -662,7 +650,7 @@ function AsientoBoton({
 }) {
   if (!asiento) {
     return (
-      <div className="h-[58px] min-w-[46px] rounded-[14px_14px_10px_10px] border-2 border-dashed border-slate-200 bg-slate-50 opacity-70 sm:h-[74px] sm:min-w-[66px] sm:rounded-[18px_18px_13px_13px]" />
+      <div className="h-[50px] w-full min-w-0 rounded-[10px_10px_8px_8px] border-2 border-dashed border-slate-200 bg-slate-50 opacity-70 sm:h-[74px] sm:rounded-[18px_18px_13px_13px]" />
     );
   }
 
@@ -706,22 +694,23 @@ function AsientoBoton({
       type="button"
       disabled={deshabilitado}
       onClick={() => onSeleccionar(asiento)}
+      aria-pressed={seleccionado}
       title={descripcionEstado}
       aria-label={descripcionEstado}
       className={[
-        "group relative h-[58px] min-w-[46px] rounded-[14px_14px_10px_10px] border-2 font-black sm:h-[74px] sm:min-w-[66px] sm:rounded-[18px_18px_13px_13px] sm:border-[3px]",
+        "group relative h-[50px] w-full min-w-0 rounded-[10px_10px_8px_8px] border-2 font-black sm:h-[74px] sm:rounded-[18px_18px_13px_13px] sm:border-[3px]",
         "shadow-[0_8px_14px_rgba(15,23,42,0.2)] transition-all duration-200",
         clasesEstado,
         "disabled:cursor-not-allowed",
       ].join(" ")}
     >
-      <span className="absolute -left-1 top-3 h-8 w-2 rounded-l-lg bg-slate-600 shadow-sm sm:-left-2 sm:top-4 sm:h-10 sm:w-3" />
+      <span className="absolute -left-0.5 top-2.5 h-7 w-1 rounded-l-lg bg-slate-600 shadow-sm sm:-left-2 sm:top-4 sm:h-10 sm:w-3" />
 
-      <span className="absolute -right-1 top-3 h-8 w-2 rounded-r-lg bg-slate-600 shadow-sm sm:-right-2 sm:top-4 sm:h-10 sm:w-3" />
+      <span className="absolute -right-0.5 top-2.5 h-7 w-1 rounded-r-lg bg-slate-600 shadow-sm sm:-right-2 sm:top-4 sm:h-10 sm:w-3" />
 
-      <span className="absolute bottom-[-7px] left-2 right-2 h-4 rounded-lg bg-slate-700 shadow-md" />
+      <span className="absolute bottom-[-4px] left-1 right-1 h-2 rounded-lg bg-slate-700 shadow-md sm:bottom-[-7px] sm:left-2 sm:right-2 sm:h-4" />
 
-      <span className="relative z-10 flex h-full items-center justify-center text-lg sm:text-2xl">
+      <span className="relative z-10 flex h-full items-center justify-center text-base sm:text-2xl">
         {seleccionado ? (
           <Check
             size={27}
@@ -800,8 +789,8 @@ function estaSeleccionado(
   return seleccionados.includes(asiento.id);
 }
 
-function identificarNoah(
-  vehiculo?: VehiculoCompra
+function identificarTipo(
+  vehiculo: VehiculoCompra | undefined, tipo: string
 ): boolean {
   if (!vehiculo) {
     return false;
@@ -816,26 +805,7 @@ function identificarNoah(
     .join(" ")
     .toUpperCase();
 
-  return descripcion.includes("NOAH");
-}
-
-function identificarHiace(
-  vehiculo?: VehiculoCompra
-): boolean {
-  if (!vehiculo) {
-    return false;
-  }
-
-  const descripcion = [
-    vehiculo.tipo,
-    vehiculo.marca,
-    vehiculo.modelo,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toUpperCase();
-
-  return descripcion.includes("HIACE");
+  return descripcion.includes(tipo);
 }
 
 function normalizarEstado(
@@ -848,8 +818,7 @@ function normalizarEstado(
 
 function obtenerNombreVehiculo(
   vehiculo: VehiculoCompra,
-  esNoah: boolean,
-  esHiace: boolean
+  esNoah: boolean, esHiace: boolean
 ): string {
   const nombre = [
     vehiculo.marca,
@@ -863,12 +832,9 @@ function obtenerNombreVehiculo(
     return nombre;
   }
 
+  if (esHiace) return "Toyota Hiace";
   if (esNoah) {
     return "Toyota Noah";
-  }
-
-  if (esHiace) {
-    return "Toyota Hiace";
   }
 
   return vehiculo.tipo || "Vehículo asignado";
@@ -882,7 +848,7 @@ function DatoVehiculo({
   valor: string;
 }) {
   return (
-    <div className="rounded-xl border border-emerald-100 bg-white px-4 py-2 shadow-sm">
+    <div className="min-w-0 rounded-xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm sm:px-4">
       <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
         {titulo}
       </span>
@@ -902,7 +868,7 @@ function Leyenda({
   texto: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/15 px-4 py-3 text-sm font-bold text-white shadow-sm backdrop-blur-sm">
+    <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-white/20 bg-white/15 px-2 py-1.5 text-[11px] font-bold leading-tight text-white shadow-sm backdrop-blur-sm sm:gap-2 sm:rounded-xl sm:px-4 sm:py-3 sm:text-sm">
       <span
         className={`h-4 w-4 shrink-0 rounded-md border border-white/30 ${color}`}
       />

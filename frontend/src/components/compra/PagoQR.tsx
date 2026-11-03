@@ -1,30 +1,37 @@
+
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
+
 import type {
   ChangeEvent,
   FormEvent,
-  ReactNode,
 } from "react";
+
 import {
-  AlertCircle,
-  Building2,
+  ArrowLeft,
   CheckCircle2,
   Clock3,
   CreditCard,
-  FileImage,
-  Hash,
+  FileCheck2,
+  FileUp,
+  Loader2,
   QrCode,
   ShieldCheck,
   UploadCloud,
+  X,
 } from "lucide-react";
 
 import qrPago from "../../assets/QR.png";
+
 import PagoAprobado from "./PagoAprobado";
+
 import type {
   TicketPagoAprobado,
 } from "./PagoAprobado";
+
 import PagoRechazado from "./PagoRechazado";
 
 export type {
@@ -66,15 +73,55 @@ interface Props {
   ) => void | Promise<void>;
 }
 
-const TAMANIO_MAXIMO =
-  5 * 1024 * 1024;
-
-const TIPOS_PERMITIDOS = [
+const TIPOS = [
   "image/jpeg",
   "image/png",
   "image/webp",
   "application/pdf",
 ];
+
+const TAMANO_MAXIMO =
+  5 * 1024 * 1024;
+
+const formatoMoneda =
+  new Intl.NumberFormat("es-BO", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const boton =
+  "flex min-h-12 w-full items-center " +
+  "justify-center gap-2 rounded-xl " +
+  "bg-emerald-700 px-4 py-3 " +
+  "text-sm font-black text-white " +
+  "shadow-sm transition-colors " +
+  "hover:bg-emerald-800 " +
+  "focus-visible:outline-2 " +
+  "focus-visible:outline-offset-2 " +
+  "focus-visible:outline-emerald-600 " +
+  "disabled:cursor-not-allowed " +
+  "disabled:opacity-50";
+
+const estiloCampo =
+  "mt-2 block min-h-12 w-full " +
+  "min-w-0 max-w-full rounded-xl " +
+  "border border-slate-300 bg-white " +
+  "px-3 py-3 text-base text-slate-900 " +
+  "outline-none transition " +
+  "focus:border-emerald-600 " +
+  "focus:ring-2 focus:ring-emerald-100 " +
+  "disabled:cursor-not-allowed " +
+  "disabled:bg-slate-100";
+
+function formatearMonto(
+  monto: number,
+): string {
+  return formatoMoneda.format(
+    Number.isFinite(monto)
+      ? monto
+      : 0,
+  );
+}
 
 function PagoQR({
   mostrar,
@@ -86,8 +133,10 @@ function PagoQR({
   referenciaPago = "",
   ticket = null,
   qrPagoUrl = qrPago,
-  nombreCuenta = "Sindicato Autotransporte Trans 2 de Junio",
-  entidadPago = "Cuenta oficial del sindicato",
+  nombreCuenta =
+    "Sindicato Autotransporte Trans 2 de Junio",
+  entidadPago =
+    "Cuenta oficial del sindicato",
   onReintentarPago,
   onVolverInicio,
   onVerMisTickets,
@@ -126,46 +175,369 @@ function PagoQR({
     setQrDisponible,
   ] = useState(true);
 
-  useEffect(() => {
-    return () => {
-      if (vistaPrevia) {
-        URL.revokeObjectURL(
-          vistaPrevia,
-        );
-      }
-    };
-  }, [vistaPrevia]);
+  const [
+    adjuntando,
+    setAdjuntando,
+  ] = useState(false);
 
+  const [
+    enviando,
+    setEnviando,
+  ] = useState(false);
+
+  const envioEnCurso =
+    useRef(false);
+
+  const encabezado =
+    useRef<HTMLHeadingElement | null>(
+      null,
+    );
+
+  const seccionFormularioRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
+
+  const seccionQrRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
+
+  const desplazamientoPendienteRef =
+    useRef<
+      "FORMULARIO" | "QR" | null
+    >(null);
+
+  /*
+   * Genera la vista previa del comprobante
+   * y libera la URL temporal al cambiarlo.
+   */
   useEffect(() => {
-    if (!mostrar) {
-      setErrorFormulario("");
+    if (
+      !comprobante?.type.startsWith(
+        "image/",
+      )
+    ) {
+      setVistaPrevia("");
+      return;
     }
-  }, [mostrar]);
 
+    const url =
+      URL.createObjectURL(
+        comprobante,
+      );
+
+    setVistaPrevia(url);
+
+    return () =>
+      URL.revokeObjectURL(
+        url,
+      );
+  }, [
+    comprobante,
+  ]);
+
+  /*
+   * Permite comprobar nuevamente
+   * la disponibilidad del QR cuando
+   * cambia su dirección.
+   */
   useEffect(() => {
     setQrDisponible(true);
-  }, [qrPagoUrl]);
+  }, [
+    qrPagoUrl,
+  ]);
+
+  /*
+   * Al ocultar el panel se restablece
+   * solamente la presentación temporal.
+   */
+  useEffect(() => {
+    if (!mostrar) {
+      setAdjuntando(false);
+      setErrorFormulario("");
+      desplazamientoPendienteRef.current =
+        null;
+    }
+  }, [
+    mostrar,
+  ]);
+
+  const estadoActual =
+    compraConfirmada
+      ? "APROBADO"
+      : estadoPago;
+
+  const enRevision =
+    estadoActual === "EN_REVISION" ||
+    (
+      comprobanteEnviado &&
+      estadoActual !== "RECHAZADO" &&
+      estadoActual !== "APROBADO"
+    );
+
+  const ocupado =
+    confirmando || enviando;
+
+  /*
+   * Cuando se envía el comprobante
+   * y entra en revisión, se muestra
+   * el estado correspondiente.
+   */
+  useEffect(() => {
+    if (
+      mostrar &&
+      enRevision
+    ) {
+      encabezado.current?.focus({
+        preventScroll: true,
+      });
+
+      encabezado.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [
+    mostrar,
+    enRevision,
+  ]);
+
+  /*
+   * Navegación automática en celulares.
+   * No altera la selección del viaje
+   * ni el procesamiento de pagos.
+   */
+  useEffect(() => {
+    const destino =
+      desplazamientoPendienteRef.current;
+
+    if (
+      !mostrar ||
+      !destino
+    ) {
+      return;
+    }
+
+    desplazamientoPendienteRef.current =
+      null;
+
+    if (
+      !window.matchMedia(
+        "(max-width: 1023px)",
+      ).matches
+    ) {
+      return;
+    }
+
+    const animacion =
+      window.requestAnimationFrame(
+        () => {
+          const elemento =
+            destino === "FORMULARIO"
+              ? seccionFormularioRef.current
+              : seccionQrRef.current;
+
+          elemento?.scrollIntoView({
+            behavior: window.matchMedia(
+              "(prefers-reduced-motion: reduce)",
+            ).matches
+              ? "auto"
+              : "smooth",
+
+            block: "start",
+          });
+        },
+      );
+
+    return () =>
+      window.cancelAnimationFrame(
+        animacion,
+      );
+  }, [
+    adjuntando,
+    mostrar,
+  ]);
+
+  function mostrarFormulario() {
+    if (
+      ocupado ||
+      !qrDisponible
+    ) {
+      return;
+    }
+
+    desplazamientoPendienteRef.current =
+      "FORMULARIO";
+
+    setAdjuntando(true);
+    setErrorFormulario("");
+  }
+
+  function volverAlQr() {
+    if (ocupado) {
+      return;
+    }
+
+    desplazamientoPendienteRef.current =
+      "QR";
+
+    setAdjuntando(false);
+  }
+
+  function prepararNuevoComprobante() {
+    setReferencia("");
+    setComprobante(null);
+    setVistaPrevia("");
+    setErrorFormulario("");
+    setComprobanteEnviado(false);
+    setAdjuntando(false);
+
+    desplazamientoPendienteRef.current =
+      null;
+
+    onReintentarPago?.();
+  }
+
+  function seleccionarComprobante(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const archivo =
+      event.currentTarget.files?.[0];
+
+    setErrorFormulario("");
+
+    if (
+      archivo &&
+      (
+        !TIPOS.includes(
+          archivo.type,
+        ) ||
+        archivo.size >
+          TAMANO_MAXIMO
+      )
+    ) {
+      setErrorFormulario(
+        !TIPOS.includes(
+          archivo.type,
+        )
+          ? "Selecciona un archivo JPG, PNG, WEBP o PDF."
+          : "El comprobante no puede superar los 5 MB.",
+      );
+
+      event.currentTarget.value =
+        "";
+
+      setComprobante(null);
+
+      return;
+    }
+
+    setComprobante(
+      archivo ?? null,
+    );
+  }
+
+  async function enviarComprobante(
+    event: FormEvent,
+  ) {
+    event.preventDefault();
+
+    if (
+      envioEnCurso.current ||
+      ocupado ||
+      enRevision ||
+      !qrDisponible
+    ) {
+      return;
+    }
+
+    const codigo =
+      referencia.trim();
+
+    if (
+      codigo.length < 4
+    ) {
+      setErrorFormulario(
+        "Ingresa el número o código de la transacción (mínimo 4 caracteres).",
+      );
+
+      return;
+    }
+
+    if (!comprobante) {
+      setErrorFormulario(
+        "Adjunta la imagen o el PDF del comprobante.",
+      );
+
+      return;
+    }
+
+    if (
+      !TIPOS.includes(
+        comprobante.type,
+      ) ||
+      comprobante.size >
+        TAMANO_MAXIMO
+    ) {
+      setErrorFormulario(
+        "El comprobante debe ser JPG, PNG, WEBP o PDF y no superar los 5 MB.",
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isFinite(
+        total,
+      ) ||
+      total <= 0
+    ) {
+      setErrorFormulario(
+        "El monto no es válido. Revisa el viaje y los asientos.",
+      );
+
+      return;
+    }
+
+    envioEnCurso.current =
+      true;
+
+    setEnviando(true);
+    setErrorFormulario("");
+
+    try {
+      await onConfirmarCompra({
+        referencia: codigo,
+        comprobante,
+        monto: total,
+      });
+
+      setComprobanteEnviado(true);
+    } catch (
+      error: unknown
+    ) {
+      setErrorFormulario(
+        obtenerMensajeError(
+          error,
+        ),
+      );
+    } finally {
+      envioEnCurso.current =
+        false;
+
+      setEnviando(false);
+    }
+  }
 
   if (!mostrar) {
     return null;
   }
 
-  const estadoActual:
-    EstadoPagoPasajero | null =
-    compraConfirmada
-      ? "APROBADO"
-      : estadoPago;
-
-  const prepararNuevoComprobante =
-    () => {
-      setReferencia("");
-      setComprobante(null);
-      setVistaPrevia("");
-      setErrorFormulario("");
-      setComprobanteEnviado(false);
-      onReintentarPago?.();
-    };
-
+  /*
+   * PAGO RECHAZADO
+   * Se conserva el componente original.
+   */
   if (
     estadoActual === "RECHAZADO"
   ) {
@@ -190,6 +562,10 @@ function PagoQR({
     );
   }
 
+  /*
+   * PAGO APROBADO
+   * Se conserva el componente original.
+   */
   if (
     estadoActual === "APROBADO"
   ) {
@@ -213,608 +589,427 @@ function PagoQR({
     );
   }
 
-  const seleccionarComprobante = (
-    event:
-      ChangeEvent<HTMLInputElement>,
-  ) => {
-    const archivo =
-      event.target.files?.[0] ??
-      null;
-
-    setErrorFormulario("");
-    setComprobanteEnviado(false);
-
-    if (!archivo) {
-      setComprobante(null);
-      setVistaPrevia("");
-      return;
-    }
-
-    if (
-      !TIPOS_PERMITIDOS.includes(
-        archivo.type,
-      )
-    ) {
-      setErrorFormulario(
-        "El comprobante debe ser una imagen JPG, PNG, WEBP o un archivo PDF.",
-      );
-      event.target.value = "";
-      return;
-    }
-
-    if (
-      archivo.size >
-      TAMANIO_MAXIMO
-    ) {
-      setErrorFormulario(
-        "El comprobante no puede superar los 5 MB.",
-      );
-      event.target.value = "";
-      return;
-    }
-
-    setComprobante(archivo);
-
-    if (
-      archivo.type.startsWith(
-        "image/",
-      )
-    ) {
-      const nuevaVista =
-        URL.createObjectURL(
-          archivo,
-        );
-
-      setVistaPrevia(
-        (vistaAnterior) => {
-          if (vistaAnterior) {
-            URL.revokeObjectURL(
-              vistaAnterior,
-            );
-          }
-
-          return nuevaVista;
-        },
-      );
-    } else {
-      setVistaPrevia("");
-    }
-  };
-
-  const enviarComprobante =
-    async (
-      event: FormEvent,
-    ) => {
-      event.preventDefault();
-      setErrorFormulario("");
-
-      const referenciaLimpia =
-        referencia.trim();
-
-      if (
-        referenciaLimpia.length < 4
-      ) {
-        setErrorFormulario(
-          "Ingresa el número o código de la transacción.",
-        );
-        return;
-      }
-
-      if (!comprobante) {
-        setErrorFormulario(
-          "Adjunta una fotografía o PDF del comprobante de pago.",
-        );
-        return;
-      }
-
-      if (
-        !Number.isFinite(total) ||
-        total <= 0
-      ) {
-        setErrorFormulario(
-          "El monto total del pago no es válido. Vuelve a seleccionar el viaje y los asientos.",
-        );
-        return;
-      }
-
-      try {
-        await onConfirmarCompra({
-          referencia:
-            referenciaLimpia,
-          comprobante,
-          monto: total,
-        });
-
-        setComprobanteEnviado(true);
-      } catch (error: unknown) {
-        setErrorFormulario(
-          obtenerMensajeError(error),
-        );
-      }
-    };
-
-  const formularioBloqueado =
-    confirmando ||
-    compraConfirmada ||
-    comprobanteEnviado;
-
   return (
-    <section className="mt-6 overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-xl shadow-emerald-950/5">
-      <div className="relative overflow-hidden border-b border-emerald-100 bg-gradient-to-r from-emerald-700 via-emerald-600 to-lime-500 px-5 py-6 text-white sm:px-7 md:px-8">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full border-[34px] border-white/[0.08]" />
+    <section className="mt-3 w-full min-w-0 overflow-hidden rounded-2xl border border-emerald-100 bg-white text-slate-900 shadow-md shadow-emerald-950/5 sm:rounded-3xl">
+      {/* ENCABEZADO */}
 
-        <div className="pointer-events-none absolute bottom-3 right-[28%] h-16 w-16 rounded-full bg-white/[0.07]" />
-
-        <div className="relative z-10 flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-lg backdrop-blur-sm">
-            <QrCode size={28} />
+      <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-600 p-4 text-white sm:p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15">
+            {enRevision ? (
+              <Clock3
+                size={25}
+              />
+            ) : adjuntando ? (
+              <FileUp
+                size={25}
+              />
+            ) : (
+              <QrCode
+                size={25}
+              />
+            )}
           </div>
 
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-100">
-              Pago mediante QR
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100 sm:text-xs">
+              Pago seguro
             </p>
 
-            <h2 className="mt-1 text-3xl font-black leading-tight">
-              Paga y envía tu
-              comprobante
+            <h2
+              ref={encabezado}
+              tabIndex={-1}
+              className="mt-1 text-xl font-black outline-none sm:text-2xl"
+            >
+              {enRevision
+                ? "Pago en revisión"
+                : adjuntando
+                  ? "Adjunta tu comprobante"
+                  : "Pago por QR"}
             </h2>
-
-            <p className="mt-2 text-sm font-medium text-emerald-50/90">
-              La administradora
-              verificará el pago antes
-              de confirmar tu compra y
-              generar el ticket.
-            </p>
           </div>
+
+          <ShieldCheck
+            size={24}
+            className="shrink-0 text-lime-200"
+          />
         </div>
       </div>
 
-      <div className="p-5 sm:p-7 md:p-8">
-        <div className="grid gap-7 lg:grid-cols-[360px_1fr]">
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-center sm:p-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-              <QrCode size={25} />
+      <div className="space-y-4 p-3 sm:p-6">
+        {/* TOTAL A PAGAR */}
+
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-4 sm:px-5">
+          <div className="flex items-center gap-2">
+            <CreditCard
+              size={20}
+              className="shrink-0 text-emerald-700"
+            />
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                Total a pagar
+              </p>
+
+              <p className="text-xs text-slate-500">
+                Importe en bolivianos
+              </p>
             </div>
+          </div>
 
-            <h3 className="mt-4 text-xl font-black text-slate-900">
-              Escanea este código QR
-            </h3>
+          <strong className="break-words text-2xl font-black tabular-nums text-emerald-900 sm:text-3xl">
+            Bs. {formatearMonto(total)}
+          </strong>
+        </div>
 
-            <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              Abre tu aplicación
-              bancaria y realiza el
-              pago por el monto exacto.
-            </p>
+        {/* PAGO EN REVISIÓN */}
 
-            <div className="mx-auto mt-5 flex aspect-square w-full max-w-[280px] items-center justify-center overflow-hidden rounded-3xl border-4 border-emerald-700 bg-white p-3 shadow-lg shadow-emerald-900/10">
-              {qrDisponible ? (
-                <img
-                  src={qrPagoUrl}
-                  alt="QR oficial para realizar el pago"
-                  onError={() =>
-                    setQrDisponible(
-                      false,
-                    )
-                  }
-                  className="h-full w-full object-contain"
+        {enRevision ? (
+          <div
+            role="status"
+            className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-6"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <Clock3
+                  size={24}
                 />
-              ) : (
-                <div className="px-5 text-center">
-                  <AlertCircle
-                    size={55}
-                    className="mx-auto text-amber-600"
-                  />
+              </div>
 
-                  <p className="mt-3 font-black text-slate-800">
-                    QR de pago no
-                    configurado
-                  </p>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-black text-amber-900">
+                  Comprobante enviado
+                </h3>
 
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    No se pudo cargar
-                    la imagen{" "}
-                    <strong>
-                      src/assets/QR.png
-                    </strong>
+                <p className="mt-2 text-sm leading-6 text-amber-900/80">
+                  Tu comprobante está en
+                  revisión. Aquí aparecerá
+                  el resultado cuando la
+                  administradora revise
+                  tu pago.
+                </p>
+
+                {referenciaPago && (
+                  <p className="mt-3 break-all rounded-lg bg-white/70 p-3 text-xs font-bold text-amber-900">
+                    Referencia:{" "}
+                    {referenciaPago}
                   </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:gap-6">
+            {/* CÓDIGO QR */}
+
+            <div
+              ref={seccionQrRef}
+              className={
+                "min-w-0 scroll-mt-28 " +
+                (adjuntando
+                  ? "hidden lg:block"
+                  : "")
+              }
+            >
+              <div className="h-full rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                    <QrCode
+                      size={22}
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <h3 className="font-black text-slate-900">
+                      Escanea para pagar
+                    </h3>
+
+                    <p className="text-xs text-slate-500">
+                      Utiliza tu aplicación bancaria
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <p className="mt-5 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-              Monto total
-            </p>
-
-            <p className="mt-1 break-words text-4xl font-black text-emerald-800">
-              Bs. {total.toFixed(2)}
-            </p>
-
-            <div className="mt-5 rounded-2xl border border-emerald-100 bg-white p-4 text-left">
-              <div className="flex items-start gap-3">
-                <Building2
-                  size={21}
-                  className="mt-0.5 shrink-0 text-emerald-700"
-                />
-
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-                    Titular
-                  </p>
-
-                  <p className="mt-1 text-sm font-black text-slate-800">
+                <div className="mt-3 rounded-xl border border-emerald-100 bg-white p-3">
+                  <p className="break-words text-center text-sm font-bold text-slate-800">
                     {nombreCuenta}
                   </p>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 break-words text-center text-xs text-slate-500">
                     {entidadPago}
                   </p>
+
+                  {qrDisponible ? (
+                    <img
+                      src={qrPagoUrl}
+                      alt="QR bancario para pagar el pasaje"
+                      onError={() =>
+                        setQrDisponible(false)
+                      }
+                      className="mx-auto my-3 aspect-square w-full max-w-[260px] rounded-lg bg-white object-contain"
+                    />
+                  ) : (
+                    <div
+                      role="alert"
+                      className="my-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800"
+                    >
+                      No se pudo cargar el QR de pago.
+                    </div>
+                  )}
                 </div>
+
+                <p className="mt-3 text-center text-xs leading-5 text-slate-600 sm:text-sm">
+                  Paga el importe indicado y
+                  guarda tu comprobante.
+                </p>
+
+                <button
+                  type="button"
+                  disabled={
+                    !qrDisponible ||
+                    ocupado
+                  }
+                  className={
+                    boton +
+                    " mt-4 lg:hidden"
+                  }
+                  onClick={
+                    mostrarFormulario
+                  }
+                >
+                  <CheckCircle2
+                    size={20}
+                  />
+
+                  Ya pagué · Adjuntar comprobante
+                </button>
+              </div>
+            </div>
+
+            {/* FORMULARIO DE COMPROBANTE */}
+
+            <div
+              ref={seccionFormularioRef}
+              className={
+                "min-w-0 scroll-mt-28 " +
+                (adjuntando
+                  ? ""
+                  : "hidden lg:block")
+              }
+            >
+              <div className="h-full rounded-2xl border border-emerald-100 bg-white p-3 sm:p-5">
+                <button
+                  type="button"
+                  disabled={ocupado}
+                  onClick={volverAlQr}
+                  className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50 lg:hidden"
+                >
+                  <ArrowLeft
+                    size={18}
+                  />
+
+                  Volver al QR
+                </button>
+
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                    <UploadCloud
+                      size={23}
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <h3 className="font-black text-slate-900">
+                      Datos del pago
+                    </h3>
+
+                    <p className="text-xs text-slate-500">
+                      Completa la referencia y adjunta tu comprobante
+                    </p>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={
+                    enviarComprobante
+                  }
+                  className="min-w-0 space-y-4"
+                >
+                  {/* REFERENCIA */}
+
+                  <div>
+                    <label
+                      htmlFor="referencia-pago"
+                      className="block text-sm font-bold text-slate-800"
+                    >
+                      Número de transacción
+                    </label>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Escribe el código que
+                      aparece en tu comprobante.
+                    </p>
+
+                    <input
+                      id="referencia-pago"
+                      type="text"
+                      value={referencia}
+                      maxLength={80}
+                      autoComplete="off"
+                      placeholder="Ejemplo: 78451236"
+                      disabled={ocupado}
+                      onChange={(
+                        event,
+                      ) =>
+                        setReferencia(
+                          event.currentTarget.value,
+                        )
+                      }
+                      className={
+                        estiloCampo
+                      }
+                    />
+                  </div>
+
+                  {/* ARCHIVO */}
+
+                  <div>
+                    <label
+                      htmlFor="comprobante-pago"
+                      className="block text-sm font-bold text-slate-800"
+                    >
+                      Adjuntar comprobante
+                    </label>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      JPG, PNG, WEBP o PDF.
+                      Tamaño máximo: 5 MB.
+                    </p>
+
+                    <input
+                      id="comprobante-pago"
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                      disabled={ocupado}
+                      onChange={
+                        seleccionarComprobante
+                      }
+                      className="mt-2 block min-h-12 w-full min-w-0 max-w-full rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-2 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-700 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white disabled:opacity-50 sm:text-sm"
+                    />
+                  </div>
+
+                  {/* ARCHIVO SELECCIONADO */}
+
+                  {comprobante && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <FileCheck2
+                          size={22}
+                          className="shrink-0 text-emerald-700"
+                        />
+
+                        <div className="min-w-0 flex-1">
+                          <p className="break-all text-xs font-black text-emerald-900 sm:text-sm">
+                            {comprobante.name}
+                          </p>
+
+                          <p className="mt-1 text-xs text-emerald-700">
+                            {(
+                              comprobante.size /
+                              1024 /
+                              1024
+                            ).toFixed(2)}{" "}
+                            MB
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={ocupado}
+                          onClick={() =>
+                            setComprobante(null)
+                          }
+                          aria-label="Quitar comprobante"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-red-600 disabled:opacity-50"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      {vistaPrevia && (
+                        <img
+                          src={vistaPrevia}
+                          alt="Vista previa del comprobante"
+                          className="mx-auto mt-3 max-h-44 w-auto max-w-full rounded-lg border border-white bg-white object-contain"
+                        />
+                      )}
+
+                      {comprobante.type ===
+                        "application/pdf" && (
+                        <p className="mt-3 text-xs font-medium text-emerald-800">
+                          Documento PDF adjuntado correctamente.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ERRORES */}
+
+                  {errorFormulario && (
+                    <div
+                      role="alert"
+                      className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
+                    >
+                      {errorFormulario}
+                    </div>
+                  )}
+
+                  {/* ENVIAR */}
+
+                  <button
+                    type="submit"
+                    disabled={
+                      ocupado ||
+                      !qrDisponible ||
+                      enRevision
+                    }
+                    className={
+                      boton +
+                      " min-h-14"
+                    }
+                  >
+                    {ocupado ? (
+                      <>
+                        <Loader2
+                          size={20}
+                          className="animate-spin"
+                        />
+
+                        Enviando comprobante...
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud
+                          size={21}
+                        />
+
+                        Enviar comprobante
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-center text-xs leading-5 text-slate-500">
+                    El pago será verificado
+                    por el personal autorizado
+                    antes de generar el ticket.
+                  </p>
+                </form>
               </div>
             </div>
           </div>
-
-          <form
-            onSubmit={
-              enviarComprobante
-            }
-            className="flex flex-col"
-          >
-            <div className="space-y-4">
-              <InformacionPago
-                icono={
-                  <CreditCard
-                    size={23}
-                  />
-                }
-                titulo="Instrucciones de pago"
-                descripcion="Escanea el QR, paga el monto exacto, guarda el comprobante e ingresa el número de la transacción."
-              />
-
-              <InformacionPago
-                icono={
-                  <ShieldCheck
-                    size={23}
-                  />
-                }
-                titulo="Compra segura"
-                descripcion="El ticket se generará únicamente después de que la administradora verifique y apruebe el pago."
-                segura
-              />
-            </div>
-
-            <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 font-black text-emerald-700">
-                  1
-                </span>
-
-                <div>
-                  <p className="font-black text-slate-900">
-                    Número de
-                    transacción
-                  </p>
-
-                  <p className="text-xs text-slate-500">
-                    Escribe el código
-                    mostrado en tu
-                    comprobante.
-                  </p>
-                </div>
-              </div>
-
-              <label
-                htmlFor="referencia-pago"
-                className="mt-5 block text-sm font-black text-slate-700"
-              >
-                Código o referencia
-              </label>
-
-              <div className="relative mt-2">
-                <Hash
-                  size={20}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700"
-                />
-
-                <input
-                  id="referencia-pago"
-                  type="text"
-                  value={referencia}
-                  disabled={
-                    formularioBloqueado
-                  }
-                  onChange={(event) => {
-                    setReferencia(
-                      event.target.value,
-                    );
-                    setComprobanteEnviado(
-                      false,
-                    );
-                  }}
-                  placeholder="Ejemplo: 78451236"
-                  maxLength={80}
-                  autoComplete="off"
-                  className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-12 pr-4 font-semibold text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 font-black text-emerald-700">
-                  2
-                </span>
-
-                <div>
-                  <p className="font-black text-slate-900">
-                    Comprobante de pago
-                  </p>
-
-                  <p className="text-xs text-slate-500">
-                    JPG, PNG, WEBP o
-                    PDF de hasta 5 MB.
-                  </p>
-                </div>
-              </div>
-
-              <label
-                htmlFor="comprobante-pago"
-                className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-300 bg-white px-5 py-7 text-center transition hover:border-emerald-500 hover:bg-emerald-50/50"
-              >
-                {vistaPrevia ? (
-                  <img
-                    src={vistaPrevia}
-                    alt="Vista previa del comprobante"
-                    className="max-h-52 w-auto rounded-xl border border-slate-200 object-contain shadow-sm"
-                  />
-                ) : comprobante ? (
-                  <>
-                    <FileImage
-                      size={42}
-                      className="text-emerald-700"
-                    />
-
-                    <p className="mt-3 font-black text-slate-800">
-                      {
-                        comprobante.name
-                      }
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <UploadCloud
-                      size={46}
-                      className="text-emerald-700"
-                    />
-
-                    <p className="mt-3 font-black text-slate-800">
-                      Seleccionar
-                      comprobante
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      Presiona aquí para
-                      buscar el archivo.
-                    </p>
-                  </>
-                )}
-
-                {comprobante && (
-                  <p className="mt-3 max-w-full truncate text-xs font-bold text-emerald-700">
-                    {comprobante.name}
-                  </p>
-                )}
-              </label>
-
-              <input
-                id="comprobante-pago"
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
-                disabled={
-                  formularioBloqueado
-                }
-                onChange={
-                  seleccionarComprobante
-                }
-                className="sr-only"
-              />
-            </div>
-
-            {errorFormulario && (
-              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-                <AlertCircle
-                  size={20}
-                  className="mt-0.5 shrink-0"
-                />
-                {errorFormulario}
-              </div>
-            )}
-
-            <EstadoPago
-              compraConfirmada={
-                compraConfirmada
-              }
-              confirmando={confirmando}
-              comprobanteEnviado={
-                comprobanteEnviado ||
-                estadoActual ===
-                  "PENDIENTE" ||
-                estadoActual ===
-                  "EN_REVISION"
-              }
-            />
-
-            <button
-              type="submit"
-              disabled={
-                formularioBloqueado ||
-                !qrDisponible
-              }
-              className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-700 px-5 py-4 font-black text-white shadow-lg shadow-emerald-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-            >
-              {compraConfirmada ? (
-                <CheckCircle2
-                  size={23}
-                />
-              ) : comprobanteEnviado ? (
-                <Clock3 size={23} />
-              ) : (
-                <UploadCloud
-                  size={23}
-                />
-              )}
-
-              {confirmando
-                ? "Enviando comprobante..."
-                : compraConfirmada
-                  ? "Pago aprobado"
-                  : comprobanteEnviado
-                    ? "Comprobante enviado"
-                    : "Enviar comprobante"}
-            </button>
-
-            <p className="mt-3 text-center text-xs leading-5 text-slate-400">
-              No cierres esta pantalla
-              mientras se envía la
-              información del pago.
-            </p>
-          </form>
-        </div>
+        )}
       </div>
     </section>
-  );
-}
-
-function EstadoPago({
-  compraConfirmada,
-  confirmando,
-  comprobanteEnviado,
-}: {
-  compraConfirmada: boolean;
-  confirmando: boolean;
-  comprobanteEnviado: boolean;
-}) {
-  const titulo = compraConfirmada
-    ? "Pago aprobado"
-    : confirmando
-      ? "Enviando comprobante"
-      : comprobanteEnviado
-        ? "Pago en revisión"
-        : "Pago pendiente";
-
-  const descripcion =
-    compraConfirmada
-      ? "La compra fue confirmada y el ticket fue generado correctamente."
-      : confirmando
-        ? "Estamos registrando el comprobante de pago."
-        : comprobanteEnviado
-          ? "La administradora revisará el comprobante antes de aprobar la compra."
-          : "Realiza el pago y completa los dos campos para solicitar la verificación.";
-
-  const aprobado =
-    compraConfirmada;
-
-  const enRevision =
-    comprobanteEnviado &&
-    !compraConfirmada;
-
-  return (
-    <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-5">
-      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-        Estado del pago
-      </p>
-
-      <div className="mt-3 flex items-center gap-3">
-        <div
-          className={[
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-            aprobado
-              ? "bg-emerald-700 text-white"
-              : enRevision
-                ? "bg-blue-100 text-blue-700"
-                : "bg-amber-100 text-amber-700",
-          ].join(" ")}
-        >
-          {aprobado ? (
-            <CheckCircle2 size={24} />
-          ) : enRevision ? (
-            <Clock3 size={24} />
-          ) : (
-            <CreditCard size={24} />
-          )}
-        </div>
-
-        <div>
-          <p className="font-black text-slate-900">
-            {titulo}
-          </p>
-
-          <p className="mt-1 text-sm leading-6 text-slate-500">
-            {descripcion}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InformacionPago({
-  icono,
-  titulo,
-  descripcion,
-  segura = false,
-}: {
-  icono: ReactNode;
-  titulo: string;
-  descripcion: string;
-  segura?: boolean;
-}) {
-  return (
-    <div
-      className={[
-        "rounded-3xl border p-5",
-        segura
-          ? "border-emerald-200 bg-emerald-50"
-          : "border-slate-200 bg-slate-50",
-      ].join(" ")}
-    >
-      <div className="flex items-start gap-4">
-        <div
-          className={[
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-            segura
-              ? "bg-emerald-700 text-white"
-              : "bg-white text-emerald-700 shadow-sm",
-          ].join(" ")}
-        >
-          {icono}
-        </div>
-
-        <div>
-          <p
-            className={[
-              "font-black",
-              segura
-                ? "text-emerald-900"
-                : "text-slate-900",
-            ].join(" ")}
-          >
-            {titulo}
-          </p>
-
-          <p
-            className={[
-              "mt-2 text-sm leading-relaxed",
-              segura
-                ? "text-emerald-800/80"
-                : "text-slate-600",
-            ].join(" ")}
-          >
-            {descripcion}
-          </p>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -841,7 +1036,11 @@ function obtenerMensajeError(
     const mensaje =
       respuesta?.data?.message;
 
-    if (Array.isArray(mensaje)) {
+    if (
+      Array.isArray(
+        mensaje,
+      )
+    ) {
       return mensaje.join(", ");
     }
 
@@ -852,7 +1051,9 @@ function obtenerMensajeError(
     }
   }
 
-  if (error instanceof Error) {
+  if (
+    error instanceof Error
+  ) {
     return error.message;
   }
 

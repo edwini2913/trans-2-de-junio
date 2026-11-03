@@ -1,8 +1,15 @@
+
 import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  ArrowLeft,
   CalendarDays,
   CheckCircle2,
   MapPin,
-  Route,
 } from "lucide-react";
 
 export type RutaBusqueda = {
@@ -20,221 +27,519 @@ interface BusquedaViajeProps {
   bloqueado?: boolean;
   onCambiarRuta?: (rutaId: string) => void;
   onCambiarFecha?: (fecha: string) => void;
+  campoMovil?: "ruta" | "fecha";
+  onUsarRuta?: () => void;
+  onUsarFecha?: () => void;
 }
 
-function BusquedaViaje({
+const estiloCampo =
+  "mt-2 min-h-12 w-full min-w-0 max-w-full rounded-xl border " +
+  "border-slate-300 bg-white px-3 text-base text-slate-900 " +
+  "focus:border-emerald-600 focus:outline-none focus:ring-2 " +
+  "focus:ring-emerald-200 disabled:bg-slate-100";
+
+const estiloBoton =
+  "mt-3 min-h-11 w-full rounded-xl bg-emerald-700 px-4 py-2 " +
+  "font-bold text-white transition hover:bg-emerald-800 " +
+  "disabled:cursor-not-allowed disabled:opacity-50 lg:hidden";
+
+export default function BusquedaViaje({
   rutas,
   rutaId = "",
   fecha = "",
   fechaMinima = "",
   cargandoRutas = false,
   bloqueado = false,
+  campoMovil,
   onCambiarRuta,
   onCambiarFecha,
+  onUsarRuta,
+  onUsarFecha,
 }: BusquedaViajeProps) {
-  /*
-   * Evita que el componente falle si la respuesta del backend todavía
-   * no llegó o si rutas viene como undefined, null u otro valor.
-   */
-  const listaRutas: RutaBusqueda[] = Array.isArray(rutas)
-    ? rutas
-    : [];
+  const listaRutas: RutaBusqueda[] =
+    Array.isArray(rutas) ? rutas : [];
 
-  const rutaSeleccionada = listaRutas.find(
-    (ruta) => String(ruta.id) === String(rutaId),
+  const ruta = listaRutas.find(
+    (opcion) =>
+      String(opcion.id) ===
+      String(rutaId),
   );
 
-  const seleccionCompleta = Boolean(rutaId) && Boolean(fecha);
+  const fechaVisible =
+    fecha.split("-").reverse().join("/");
 
-  const manejarCambioRuta = (
-    event: React.ChangeEvent<HTMLSelectElement>,
+  const fechaPermitida =
+    Boolean(fecha) &&
+    (!fechaMinima || fecha >= fechaMinima);
+
+  /*
+   * Navegación automática para celulares.
+   * Si el padre proporciona campoMovil,
+   * se respeta ese valor.
+   */
+  const [
+    pasoInterno,
+    setPasoInterno,
+  ] = useState<"ruta" | "fecha">(
+    rutaId ? "fecha" : "ruta",
+  );
+
+  const pasoActual =
+    campoMovil ?? pasoInterno;
+
+  const seccionRef =
+    useRef<HTMLElement | null>(null);
+
+  const fechaRef =
+    useRef<HTMLInputElement | null>(null);
+
+  const rutaRef =
+    useRef<HTMLSelectElement | null>(null);
+
+  const desplazamientoRef =
+    useRef<"ruta" | "fecha" | null>(
+      null,
+    );
+
+  /*
+   * Cuando una selección externa borra
+   * la ruta, vuelve al primer paso.
+   */
+  useEffect(() => {
+    if (!rutaId) {
+      setPasoInterno("ruta");
+    }
+  }, [rutaId]);
+
+  /*
+   * Desplazamiento dentro del formulario.
+   * No se ejecuta en computadoras.
+   */
+  const enfocarPaso = (
+    destino: "ruta" | "fecha",
   ) => {
-    onCambiarRuta?.(event.target.value);
+    desplazamientoRef.current =
+      destino;
+
+    window.requestAnimationFrame(() => {
+      if (
+        !window.matchMedia(
+          "(max-width: 1023px)",
+        ).matches
+      ) {
+        desplazamientoRef.current =
+          null;
+        return;
+      }
+
+      seccionRef.current?.scrollIntoView({
+        behavior: window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches
+          ? "auto"
+          : "smooth",
+        block: "start",
+      });
+    });
   };
 
-  const manejarCambioFecha = (
-    event: React.ChangeEvent<HTMLInputElement>,
+  /*
+   * Enfoca el control del siguiente
+   * paso cuando React termina de pintar.
+   *
+   * No abre el teclado ni cambia
+   * datos de la reserva.
+   */
+  useEffect(() => {
+    if (
+      !desplazamientoRef.current ||
+      desplazamientoRef.current !==
+        pasoActual
+    ) {
+      return;
+    }
+
+    desplazamientoRef.current = null;
+
+    const animacion =
+      window.requestAnimationFrame(() => {
+        if (
+          pasoActual === "fecha"
+        ) {
+          fechaRef.current?.focus({
+            preventScroll: true,
+          });
+        } else {
+          rutaRef.current?.focus({
+            preventScroll: true,
+          });
+        }
+      });
+
+    return () =>
+      window.cancelAnimationFrame(
+        animacion,
+      );
+  }, [pasoActual]);
+
+  const seleccionarRuta = (
+    nuevaRutaId: string,
   ) => {
-    onCambiarFecha?.(event.target.value);
+    if (
+      bloqueado ||
+      cargandoRutas
+    ) {
+      return;
+    }
+
+    onCambiarRuta?.(nuevaRutaId);
+
+    if (nuevaRutaId) {
+      if (campoMovil) {
+        /*
+         * El componente padre controla
+         * el paso cuando proporciona
+         * campoMovil y onUsarRuta.
+         */
+        if (onUsarRuta) {
+          return;
+        }
+      }
+
+      setPasoInterno("fecha");
+      enfocarPaso("fecha");
+    } else {
+      setPasoInterno("ruta");
+    }
   };
+
+  const seleccionarFecha = (
+    nuevaFecha: string,
+  ) => {
+    if (bloqueado) {
+      return;
+    }
+
+    onCambiarFecha?.(nuevaFecha);
+
+    /*
+     * Los horarios se actualizan desde
+     * ComprarReservar y useCompraViaje.
+     * No generamos una reserva aquí.
+     */
+  };
+
+  const volverRuta = () => {
+    if (bloqueado) {
+      return;
+    }
+
+    setPasoInterno("ruta");
+    enfocarPaso("ruta");
+  };
+
+  const usarRuta = () => {
+    if (
+      bloqueado ||
+      !ruta
+    ) {
+      return;
+    }
+
+    if (onUsarRuta) {
+      onUsarRuta();
+    } else {
+      setPasoInterno("fecha");
+      enfocarPaso("fecha");
+    }
+  };
+
+  const usarFecha = () => {
+    if (
+      bloqueado ||
+      !ruta ||
+      !fechaPermitida
+    ) {
+      return;
+    }
+
+    onUsarFecha?.();
+  };
+
+  const mostrarRuta =
+    pasoActual !== "fecha";
+
+  const mostrarFecha =
+    pasoActual !== "ruta";
 
   return (
-    <section className="mt-8 overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-lg shadow-emerald-900/5">
-      <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-lime-50 px-5 py-5 sm:px-7">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">
-              Buscar viaje
-            </p>
+    <section
+      ref={seccionRef}
+      className="mt-3 min-w-0 scroll-mt-28 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm sm:p-5 lg:mt-8 lg:p-7"
+    >
+      {/* ENCABEZADO */}
 
-            <h3 className="mt-1 text-2xl font-black text-slate-900">
-              1. Ruta y fecha
-            </h3>
+      <div className="mb-4 flex min-w-0 items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+          {pasoActual === "fecha" ? (
+            <CalendarDays size={23} />
+          ) : (
+            <MapPin size={23} />
+          )}
+        </div>
 
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Selecciona el destino y la fecha en la que deseas viajar.
-            </p>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 lg:hidden">
+            {pasoActual === "fecha"
+              ? "Paso 2 · Fecha"
+              : "Paso 1 · Ruta"}
+          </p>
+
+          <h3 className="text-base font-black text-emerald-900 sm:text-lg">
+            <span className="lg:hidden">
+              {pasoActual === "fecha"
+                ? "¿Qué día viajas?"
+                : "¿Qué ruta vas a tomar?"}
+            </span>
+
+            <span className="hidden lg:inline">
+              Ruta y fecha
+            </span>
+          </h3>
+        </div>
+      </div>
+
+      {/* PROGRESO EN CELULARES */}
+
+      <div className="mb-4 grid grid-cols-2 gap-2 lg:hidden">
+        <div
+          className={
+            "h-1.5 rounded-full " +
+            (ruta
+              ? "bg-emerald-600"
+              : "bg-emerald-300")
+          }
+        />
+
+        <div
+          className={
+            "h-1.5 rounded-full " +
+            (fechaPermitida
+              ? "bg-emerald-600"
+              : "bg-slate-200")
+          }
+        />
+      </div>
+
+      {/* RESUMEN DE RUTA EN PASO FECHA */}
+
+      {pasoActual === "fecha" && ruta && (
+        <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3 lg:hidden">
+          <div className="flex items-start gap-2">
+            <CheckCircle2
+              size={19}
+              className="mt-0.5 shrink-0 text-emerald-700"
+            />
+
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-emerald-700">
+                Ruta seleccionada
+              </p>
+
+              <p className="mt-1 break-words text-sm font-black text-emerald-950">
+                {ruta.origen} → {ruta.destino}
+              </p>
+            </div>
           </div>
 
-          <div
-            className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold ${
-              seleccionCompleta
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-slate-200 bg-white text-slate-500"
-            }`}
+          {!campoMovil && (
+            <button
+              type="button"
+              disabled={bloqueado}
+              onClick={volverRuta}
+              className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-bold text-emerald-800 disabled:opacity-50"
+            >
+              <ArrowLeft size={15} />
+              Cambiar ruta
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+        {/* RUTA */}
+
+        <div
+          className={
+            mostrarRuta
+              ? "min-w-0"
+              : "hidden min-w-0 lg:block"
+          }
+        >
+          <label
+            htmlFor="ruta-viaje"
+            className="flex items-center gap-2 text-sm font-bold text-slate-800"
           >
-            {seleccionCompleta ? (
-              <CheckCircle2 size={18} />
-            ) : (
-              <Route size={18} />
-            )}
+            <MapPin
+              size={18}
+              className="text-emerald-700"
+            />
 
-            {seleccionCompleta
-              ? "Selección completa"
-              : "Completa ambos campos"}
-          </div>
-        </div>
-      </div>
+            Ruta de viaje
+          </label>
 
-      <div className="p-5 sm:p-7">
-        <div className="grid gap-6 md:grid-cols-2">
-          <div>
-            <label
-              htmlFor="ruta-viaje"
-              className="flex items-center gap-2 text-sm font-black text-slate-700"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                <MapPin size={17} />
-              </span>
+          <select
+            ref={rutaRef}
+            id="ruta-viaje"
+            className={estiloCampo}
+            value={rutaId}
+            disabled={
+              cargandoRutas ||
+              bloqueado
+            }
+            onChange={(event) =>
+              seleccionarRuta(
+                event.currentTarget.value,
+              )
+            }
+          >
+            <option value="">
+              {cargandoRutas
+                ? "Cargando rutas…"
+                : listaRutas.length
+                  ? "Elegir ruta…"
+                  : "No hay rutas disponibles"}
+            </option>
 
-              Ruta de viaje
-            </label>
-
-            <div className="relative mt-3">
-              <select
-                id="ruta-viaje"
-                value={rutaId}
-                disabled={cargandoRutas || bloqueado}
-                onChange={manejarCambioRuta}
-                className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-11 font-semibold text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-              >
-                <option value="">
-                  {cargandoRutas
-                    ? "Cargando rutas..."
-                    : listaRutas.length === 0
-                      ? "No hay rutas disponibles"
-                      : "Elegir ruta..."}
+            {listaRutas.map(
+              (opcion) => (
+                <option
+                  key={opcion.id}
+                  value={String(
+                    opcion.id,
+                  )}
+                >
+                  {opcion.origen} →{" "}
+                  {opcion.destino}
                 </option>
-
-                {listaRutas.map((ruta) => (
-                  <option
-                    key={String(ruta.id)}
-                    value={String(ruta.id)}
-                  >
-                    {ruta.origen} → {ruta.destino}
-                  </option>
-                ))}
-              </select>
-
-              <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-emerald-700">
-                <Route size={19} />
-              </div>
-            </div>
-
-            <p className="mt-2 text-xs leading-5 text-slate-400">
-              Elige el origen y destino correspondiente a tu viaje.
-            </p>
-
-            {!cargandoRutas && listaRutas.length === 0 && (
-              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
-                No se encontraron rutas disponibles. Intenta nuevamente más
-                tarde.
-              </div>
+              ),
             )}
-          </div>
+          </select>
 
-          <div>
-            <label
-              htmlFor="fecha-viaje"
-              className="flex items-center gap-2 text-sm font-black text-slate-700"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                <CalendarDays size={17} />
-              </span>
+          {!cargandoRutas &&
+            listaRutas.length === 0 && (
+              <p
+                role="status"
+                className="mt-2 text-xs text-amber-700"
+              >
+                No hay rutas disponibles.
+                Intenta más tarde.
+              </p>
+            )}
 
-              Fecha de viaje
-            </label>
-
-            <div className="relative mt-3">
-              <input
-                id="fecha-viaje"
-                type="date"
-                value={fecha}
-                min={fechaMinima || undefined}
-                disabled={bloqueado}
-                onChange={manejarCambioFecha}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-semibold text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-              />
-            </div>
-
-            <p className="mt-2 text-xs leading-5 text-slate-400">
-              Solo puedes seleccionar fechas disponibles desde hoy en
-              adelante.
-            </p>
-          </div>
+          {pasoActual === "ruta" &&
+            ruta &&
+            onUsarRuta && (
+              <button
+                type="button"
+                className={estiloBoton}
+                disabled={
+                  bloqueado ||
+                  cargandoRutas
+                }
+                onClick={usarRuta}
+              >
+                Usar esta ruta
+              </button>
+            )}
         </div>
 
-        {rutaSeleccionada && (
-          <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md shadow-emerald-700/20">
-                <Route size={23} />
-              </div>
+        {/* FECHA */}
 
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.15em] text-emerald-600">
-                  Ruta seleccionada
-                </p>
+        <div
+          className={
+            mostrarFecha
+              ? "min-w-0"
+              : "hidden min-w-0 lg:block"
+          }
+        >
+          <label
+            htmlFor="fecha-viaje"
+            className="flex items-center gap-2 text-sm font-bold text-slate-800"
+          >
+            <CalendarDays
+              size={18}
+              className="text-emerald-700"
+            />
 
-                <p className="mt-1 text-lg font-black text-slate-900">
-                  {rutaSeleccionada.origen}{" "}
-                  <span className="text-emerald-600">→</span>{" "}
-                  {rutaSeleccionada.destino}
-                </p>
-              </div>
-            </div>
+            Fecha de viaje
+          </label>
 
-            {fecha && (
-              <div className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm">
-                <span className="text-slate-400">Fecha:</span>{" "}
-                {formatearFecha(fecha)}
-              </div>
+          <input
+            ref={fechaRef}
+            id="fecha-viaje"
+            type="date"
+            className={estiloCampo}
+            value={fecha}
+            min={
+              fechaMinima ||
+              undefined
+            }
+            disabled={bloqueado}
+            onChange={(event) =>
+              seleccionarFecha(
+                event.currentTarget.value,
+              )
+            }
+          />
+
+          {pasoActual === "fecha" &&
+            onUsarFecha &&
+            fechaPermitida && (
+              <button
+                type="button"
+                className={estiloBoton}
+                disabled={
+                  bloqueado || !ruta
+                }
+                onClick={usarFecha}
+              >
+                {fecha === fechaMinima
+                  ? "Viajar hoy"
+                  : "Usar esta fecha"}
+
+                {" · "}
+                {fechaVisible}
+              </button>
             )}
-          </div>
-        )}
+
+          {fecha &&
+            !fechaPermitida && (
+              <p
+                role="alert"
+                className="mt-2 text-xs font-semibold text-red-600"
+              >
+                Selecciona una fecha
+                permitida.
+              </p>
+            )}
+        </div>
       </div>
+
+      {/* RESUMEN PARA COMPUTADORAS */}
+
+      {ruta && (
+        <p className="mt-4 hidden break-words rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-900 lg:block">
+          {ruta.origen} → {ruta.destino}
+
+          {fecha && (
+            <span>
+              {" · "}
+              {fechaVisible}
+            </span>
+          )}
+        </p>
+      )}
     </section>
   );
 }
-
-function formatearFecha(fecha: string): string {
-  if (!fecha) {
-    return "";
-  }
-
-  const partes = fecha.split("-");
-
-  if (partes.length !== 3) {
-    return fecha;
-  }
-
-  const [anio, mes, dia] = partes;
-
-  if (!anio || !mes || !dia) {
-    return fecha;
-  }
-
-  return `${dia}/${mes}/${anio}`;
-}
-
-export default BusquedaViaje;
