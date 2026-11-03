@@ -570,6 +570,23 @@ export class PagosService {
       throw error;
     }
 
+    // Protección: no marcar un pago como APROBADO si la reserva
+    // no quedó confirmada o si no se devolvió un ticket generado.
+    // Nota: este control no sustituye una transacción única entre
+    // la confirmación de la reserva, ticket y aprobación del pago.
+    if (
+      resultadoReserva.reserva?.estado !== EstadoReserva.CONFIRMADA ||
+      !resultadoReserva.ticket
+    ) {
+      this.logger.error(
+        `El pago ${pagoId} no puede aprobarse: la reserva o el ticket no están completos.`,
+      );
+
+      throw new InternalServerErrorException(
+        "No se pudo completar la reserva y el ticket. El pago requiere revisión administrativa antes de reintentarse.",
+      );
+    }
+
     try {
       await this.dataSource.transaction(async (manager) => {
         const pago = await this.buscarPagoBloqueado(manager, datos.pagoId);

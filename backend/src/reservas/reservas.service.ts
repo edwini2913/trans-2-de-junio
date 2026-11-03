@@ -24,6 +24,7 @@ import {
 import { NotificacionesService } from "../notificaciones/notificaciones.service";
 
 import { TicketsService } from "../tickets/tickets.service";
+import { EstadoPago, Pago } from "../pagos/entities/pago.entity";
 
 import { AuditoriaService } from "../auditoria/auditoria.service";
 
@@ -508,7 +509,18 @@ constructor(
       return this.buscarReservaCompleta(manager, reserva.id);
     });
 
-    const ticket = await this.ticketsService.generarTicket(resultado.id);
+    // La generación del ticket tiene su propia transacción.
+    // Si falla, NO liberamos asientos ni eliminamos la reserva confirmada:
+    // la operación necesita reintento o conciliación del pago.
+    let ticket;
+    try {
+      ticket = await this.ticketsService.generarTicket(resultado.id);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        "La reserva fue confirmada, pero no se pudo completar el ticket QR. No vuelvas a pagar; solicita la revisión y reintento de la emisión.",
+        { cause: error },
+      );
+    }
 
     return {
       ok: true,
@@ -572,18 +584,26 @@ constructor(
           ({ asientoViaje }) => asientoViaje,
         );
 
+        let asientosLiberados = 0;
+
         for (const asiento of asientos) {
-          if (asiento.estado === EstadoAsiento.BLOQUEADO) {
+          if (
+            asiento.estado === EstadoAsiento.BLOQUEADO &&
+            asiento.bloqueadoPor === reserva.usuario?.id
+          ) {
             asiento.estado = EstadoAsiento.DISPONIBLE;
             asiento.bloqueadoPor = null;
             asiento.bloqueadoHasta = null;
+            asientosLiberados += 1;
           }
         }
 
         await manager.save(AsientoViaje, asientos);
 
+        // El contador se descuenta al crear la reserva pendiente.
+        // Se restaura una sola vez cuando ésta vence y sus plazas se liberan.
         reserva.viaje.asientosDisponibles =
-          Number(reserva.viaje.asientosDisponibles ?? 0) + asientos.length;
+          Number(reserva.viaje.asientosDisponibles ?? 0) + asientosLiberados;
 
         await manager.save(Viaje, reserva.viaje);
 
@@ -671,9 +691,32 @@ constructor(
         throw new ConflictException("La reserva ya se encuentra cancelada.");
       }
 
-      if (soloPendiente && reserva.estado !== EstadoReserva.PENDIENTE) {
+      // Una reserva confirmada puede tener un ticket QR válido.
+      // Liberar sus asientos sin cancelar también el ticket permitiría
+      // reutilizar los asientos de una compra ya aprobada.
+      // La cancelación de compras confirmadas requiere un flujo propio
+      // que compruebe el pago y anule el ticket de forma atómica.
+      if (reserva.estado !== EstadoReserva.PENDIENTE) {
         throw new ConflictException(
-          "Solamente puedes cancelar reservas pendientes de pago.",
+          soloPendiente
+            ? "Solamente puedes cancelar reservas pendientes de pago."
+            : "No se puede liberar una reserva confirmada o vencida desde esta operación. Debe utilizarse el procedimiento de anulación del ticket y del pago.",
+        );
+      }
+
+      // El pago de esta reserva podría estar bajo revisión administrativa.
+      // En ese caso no se deben liberar asientos mientras la aprobación
+      // aún puede completarse desde PagosService.
+      const pagoEnProceso = await manager.getRepository(Pago).exists({
+        where: [
+          { reserva: { id: reserva.id }, estado: EstadoPago.PENDIENTE },
+          { reserva: { id: reserva.id }, estado: EstadoPago.EN_REVISION },
+        ],
+      });
+
+      if (pagoEnProceso) {
+        throw new ConflictException(
+          "La reserva tiene un comprobante pendiente de revisión y todavía no puede cancelarse.",
         );
       }
 

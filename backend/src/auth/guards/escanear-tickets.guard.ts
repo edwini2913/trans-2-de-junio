@@ -15,13 +15,13 @@ import {
 } from '../../users/entities/usuario.entity';
 
 /* =========================================
-   USUARIO AUTENTICADO
+   USUARIO AUTENTICADO MEDIANTE JWT
 ========================================= */
 
 interface UsuarioAutenticado {
   id: string;
   rol: RolUsuario;
-  estado?: boolean;
+  estado: boolean;
   puedeEscanearTickets: boolean;
 }
 
@@ -30,7 +30,7 @@ type SolicitudAutenticada = Request & {
 };
 
 /* =========================================
-   GUARD DE ESCANEO DE TICKETS
+   GUARD PARA VALIDACIÓN DE TICKETS QR
 ========================================= */
 
 @Injectable()
@@ -40,7 +40,7 @@ export class EscanearTicketsGuard extends AuthGuard('jwt') {
   ): Promise<boolean> {
 
     /* =====================================
-       1. VALIDAR TOKEN JWT
+       1. VERIFICAR AUTENTICACIÓN JWT
     ===================================== */
 
     const autenticado =
@@ -48,7 +48,7 @@ export class EscanearTicketsGuard extends AuthGuard('jwt') {
 
     if (!autenticado) {
       throw new UnauthorizedException(
-        'Debes iniciar sesión para escanear tickets.',
+        'Debes iniciar sesión para validar tickets QR.',
       );
     }
 
@@ -64,22 +64,12 @@ export class EscanearTicketsGuard extends AuthGuard('jwt') {
 
     if (!usuario?.id || !usuario.rol) {
       throw new UnauthorizedException(
-        'No se pudo verificar tu sesión.',
+        'No se pudo verificar tu sesión. Inicia sesión nuevamente.',
       );
     }
 
     /* =====================================
-       3. PERMITIR SOLAMENTE CHOFERES
-    ===================================== */
-
-    if (usuario.rol !== RolUsuario.CHOFER) {
-      throw new ForbiddenException(
-        'Esta función es exclusiva para choferes autorizados.',
-      );
-    }
-
-    /* =====================================
-       4. VERIFICAR CUENTA ACTIVA
+       3. COMPROBAR CUENTA ACTIVA
     ===================================== */
 
     if (usuario.estado !== true) {
@@ -89,17 +79,44 @@ export class EscanearTicketsGuard extends AuthGuard('jwt') {
     }
 
     /* =====================================
-       5. VERIFICAR PERMISO DE ESCANEO
+       4. AUTORIZAR ADMINISTRADOR
     ===================================== */
 
-    if (usuario.puedeEscanearTickets !== true) {
+    if (
+      usuario.rol ===
+      RolUsuario.ADMINISTRADOR
+    ) {
+      return true;
+    }
+
+    /* =====================================
+       5. VERIFICAR ROL CHOFER
+    ===================================== */
+
+    if (
+      usuario.rol !==
+      RolUsuario.CHOFER
+    ) {
       throw new ForbiddenException(
-        'No tienes autorización para escanear tickets. Solicita la habilitación al administrador.',
+        'Solo los administradores y choferes autorizados pueden validar el abordaje.',
       );
     }
 
     /* =====================================
-       6. AUTORIZAR ESCANEO
+       6. VERIFICAR PERMISO DEL CHOFER
+    ===================================== */
+
+    if (
+      usuario.puedeEscanearTickets !==
+      true
+    ) {
+      throw new ForbiddenException(
+        'Tu cuenta de chofer no tiene habilitado el escaneo de tickets. Solicita autorización al administrador.',
+      );
+    }
+
+    /* =====================================
+       7. AUTORIZAR VALIDACIÓN DEL QR
     ===================================== */
 
     return true;

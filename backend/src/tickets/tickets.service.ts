@@ -415,21 +415,12 @@ export class TicketsService {
           );
         }
 
-        const blockchain =
-          await this.blockchainService.verificarTicket(
-            ticket,
-            manager,
-          );
-
-        if (!blockchain.autentico) {
-          throw new BadRequestException(
-            blockchain.mensaje,
-          );
-        }
-
+        // Revisar el estado antes de consultar Blockchain para que
+        // un ticket usado o cancelado muestre su motivo real.
+        // Estas comprobaciones nunca autorizan el embarque:
+        // el estado VALIDO aún debe superar Blockchain.
         if (
-          ticket.estado ===
-          EstadoTicket.UTILIZADO
+          ticket.estado === EstadoTicket.UTILIZADO
         ) {
           throw new ConflictException(
             'Este ticket ya fue utilizado.',
@@ -437,8 +428,7 @@ export class TicketsService {
         }
 
         if (
-          ticket.estado ===
-          EstadoTicket.CANCELADO
+          ticket.estado === EstadoTicket.CANCELADO
         ) {
           throw new BadRequestException(
             'Este ticket está cancelado.',
@@ -454,11 +444,24 @@ export class TicketsService {
         }
 
         if (
-          ticket.reserva.estado !==
-          EstadoReserva.CONFIRMADA
+          ticket.reserva.estado !== EstadoReserva.CONFIRMADA
         ) {
           throw new BadRequestException(
             'La reserva asociada al ticket no está confirmada.',
+          );
+        }
+
+        // Solo se marca UTILIZADO cuando el ticket aprobado
+        // pasa efectivamente la verificación de autenticidad.
+        const blockchain =
+          await this.blockchainService.verificarTicket(
+            ticket,
+            manager,
+          );
+
+        if (!blockchain.autentico) {
+          throw new BadRequestException(
+            blockchain.mensaje,
           );
         }
 

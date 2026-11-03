@@ -8,7 +8,7 @@ import {
 
 import { InjectDataSource } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
-import {DataSource,EntityManager,} from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { ResultadoAuditoria, TipoAccionAuditoria,} from '../auditoria/entities/auditoria.entity';
 import { Ticket } from '../tickets/entities/ticket.entity';
@@ -33,8 +33,6 @@ export interface ResultadoVerificacionBlockchain {
 export class BlockchainService implements OnModuleInit {
   private readonly logger =
     new Logger(BlockchainService.name);
-
-  private readonly horasBloqueoPago = 24;
 
   constructor(
     @InjectDataSource()
@@ -404,7 +402,11 @@ export class BlockchainService implements OnModuleInit {
           mensaje:
             autentico
               ? 'Ticket auténtico. La información coincide con blockchain.'
-              : 'La información fue alterada o la cadena blockchain no es válida.',
+              : !datosCoinciden
+                ? 'Los datos actuales del ticket no coinciden con el registro original.'
+                : !bloqueIntegro
+                  ? 'El hash del bloque de este ticket no coincide con el registro.'
+                  : 'La cadena blockchain tiene un problema de integridad. Requiere revisión; no se puede autorizar el abordaje.',
 
           bloque: {
             indice:
@@ -544,69 +546,96 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
-  async verificarCadena(
+  /**
+   * Diagnóstico de solo lectura: identifica el primer bloque defectuoso.
+   * Nunca modifica hashes ni registros existentes.
+   */
+  async diagnosticarCadena(
     manager?: EntityManager,
-  ): Promise<boolean> {
-    const bloques =
-      await (
-        manager ??
-        this.dataSource.manager
-      )
-        .getRepository(
-          BloqueTicket,
-        )
-        .find({
-          order: {
-            indice:
-              'ASC',
-          },
-        });
+  ): Promise<{
+    cadenaValida: boolean;
+    totalBloques: number;
+    primerBloqueFallido: string | null;
+    codigoTicket: string | null;
+    motivo: string | null;
+  }> {
+    const bloques = await (
+      manager ?? this.dataSource.manager
+    ).getRepository(BloqueTicket).find({
+      order: { indice: 'ASC' },
+    });
 
-    let hashAnterior =
-      HASH_GENESIS;
+    let hashAnteriorEsperado = HASH_GENESIS;
+    let indiceEsperado = 1n;
 
-    for (
-      const bloque of bloques
-    ) {
-      // MEJORA: comprobar el contenido almacenado
-      // sin modificar los bloques existentes.
-      const hashDatosCalculado =
-        this.calcularHash(
-          bloque.datosTicket,
-        );
+    const fallar = (
+      bloque: BloqueTicket,
+      motivo: string,
+    ) => ({
+      cadenaValida: false,
+      totalBloques: bloques.length,
+      primerBloqueFallido: String(bloque.indice),
+      codigoTicket: bloque.codigoTicket,
+      motivo,
+    });
 
-      if (
-        hashDatosCalculado !==
-        bloque.hashDatos
-      ) {
-        return false;
+    for (const bloque of bloques) {
+      // Los índices deben estar consecutivos desde el bloque génesis.
+      if (BigInt(bloque.indice) !== indiceEsperado) {
+        return fallar(bloque, 'INDICE_NO_CONSECUTIVO');
       }
 
-      const hashCalculado =
-        this.calcularHash(
-          this.construirContenidoBloque(
-            bloque.indice,
-            bloque.ticketId,
-            bloque.hashDatos,
-            bloque.hashAnterior,
-            bloque.fechaBloque,
-          ),
-        );
-
-      if (
-        bloque.hashAnterior !==
-          hashAnterior ||
-        bloque.hashBloque !==
-          hashCalculado
-      ) {
-        return false;
+      if (bloque.hashAnterior !== hashAnteriorEsperado) {
+        return fallar(bloque, 'ENLACE_ANTERIOR_INCORRECTO');
       }
 
-      hashAnterior =
-        bloque.hashBloque;
+      if (this.calcularHash(bloque.datosTicket) !== bloque.hashDatos) {
+        return fallar(bloque, 'CONTENIDO_NO_COINCIDE_CON_HASH_DATOS');
+      }
+
+      let contenidoBloque: string;
+      try {
+        contenidoBloque = this.construirContenidoBloque(
+          bloque.indice,
+          bloque.ticketId,
+          bloque.hashDatos,
+          bloque.hashAnterior,
+          bloque.fechaBloque,
+        );
+      } catch {
+        return fallar(bloque, 'FECHA_BLOQUE_INVALIDA');
+      }
+
+      if (this.calcularHash(contenidoBloque) !== bloque.hashBloque) {
+        // Posible causa: fecha_bloque es TIMESTAMP sin zona horaria.
+        // No se altera ni se acepta otro hash sin investigar el origen.
+        return fallar(bloque, 'HASH_BLOQUE_NO_COINCIDE_REVISAR_FECHA_Y_ZONA_HORARIA');
+      }
+
+      hashAnteriorEsperado = bloque.hashBloque;
+      indiceEsperado += 1n;
     }
 
-    return true;
+    return {
+      cadenaValida: true,
+      totalBloques: bloques.length,
+      primerBloqueFallido: null,
+      codigoTicket: null,
+      motivo: null,
+    };
+  }
+
+  async verificarCadena(manager?: EntityManager): Promise<boolean> {
+    const diagnostico = await this.diagnosticarCadena(manager);
+
+    if (!diagnostico.cadenaValida) {
+      this.logger.warn(
+        `Blockchain inconsistente: bloque=${diagnostico.primerBloqueFallido}, ` +
+        `ticket=${diagnostico.codigoTicket}, motivo=${diagnostico.motivo}`,
+      );
+    }
+
+    return diagnostico.cadenaValida;
   }
 
   async obtenerResumen() {
@@ -631,14 +660,20 @@ export class BlockchainService implements OnModuleInit {
         },
       );
 
-    const cadenaValida =
-      await this.verificarCadena();
+    const diagnostico = await this.diagnosticarCadena();
+    const cadenaValida = diagnostico.cadenaValida;
 
     return {
       ok:
         true,
 
       cadenaValida,
+
+      diagnostico: {
+        primerBloqueFallido: diagnostico.primerBloqueFallido,
+        codigoTicket: diagnostico.codigoTicket,
+        motivo: diagnostico.motivo,
+      },
 
       totalBloques:
         total,
