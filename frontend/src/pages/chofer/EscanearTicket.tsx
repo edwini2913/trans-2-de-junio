@@ -1,3 +1,4 @@
+
 import {
   useCallback,
   useRef,
@@ -25,7 +26,11 @@ import {
 } from "lucide-react";
 
 import LectorQr from "../../components/qr/LectorQr";
-import API from "../../services/auth.service";
+
+import {
+  obtenerTicketPorToken,
+  validarTicket,
+} from "../../services/tickets.service";
 
 type EstadoResultado =
   | "INICIAL"
@@ -60,15 +65,15 @@ type VehiculoTicket = {
 type ViajeTicket = {
   fecha?: string;
   horaSalida?: string;
-  ruta?: RutaTicket;
-  vehiculo?: VehiculoTicket;
+  ruta?: RutaTicket | null;
+  vehiculo?: VehiculoTicket | null;
 };
 
 type ReservaTicket = {
   codigoReserva?: string;
   estado?: string;
-  usuario?: UsuarioTicket;
-  viaje?: ViajeTicket;
+  usuario?: UsuarioTicket | null;
+  viaje?: ViajeTicket | null;
   asientos?: AsientoTicket[];
 };
 
@@ -81,7 +86,7 @@ type TicketEscaneado = {
   asientoNumeros?: Array<number | string>;
   asientos?: AsientoTicket[];
 
-  reserva?: ReservaTicket;
+  reserva?: ReservaTicket | null;
 
   blockchain?: {
     autentico?: boolean;
@@ -95,14 +100,9 @@ type TicketEscaneado = {
     } | null;
   };
 
-  origen?: string;
-  destino?: string;
-};
-
-type RespuestaValidacion = {
-  ok?: boolean;
-  mensaje?: string;
-  ticket?: TicketEscaneado;
+  // Corrección: aceptar los valores del backend.
+  origen?: string | null;
+  destino?: string | null;
 };
 
 function EscanearTicket() {
@@ -153,15 +153,8 @@ function EscanearTicket() {
          * Esta consulta solamente comprueba el ticket.
          * Todavía no lo marca como utilizado.
          */
-        const consulta =
-          await API.get<TicketEscaneado>(
-            `/tickets/token/${encodeURIComponent(
-              token,
-            )}`,
-          );
-
         const ticketEncontrado =
-          consulta.data;
+          await obtenerTicketPorToken(token);
 
         setTicket(ticketEncontrado);
 
@@ -314,7 +307,8 @@ function EscanearTicket() {
       if (
         !tokenActual ||
         estado !== "COMPROBADO" ||
-        procesando
+        procesando ||
+        procesandoRef.current
       ) {
         return;
       }
@@ -328,25 +322,24 @@ function EscanearTicket() {
         return;
       }
 
+      procesandoRef.current = true;
+
       try {
         setProcesando(true);
 
+        /*
+         * El servicio exige:
+         * ok === true
+         * estado === "UTILIZADO"
+         */
         const respuesta =
-          await API.patch<RespuestaValidacion>(
-            `/tickets/validar/${encodeURIComponent(
-              tokenActual,
-            )}`,
-          );
+          await validarTicket(tokenActual);
 
-        setTicket(
-          respuesta.data?.ticket ||
-            ticket,
-        );
-
+        setTicket(respuesta.ticket);
         setEstado("AUTORIZADO");
 
         setMensaje(
-          respuesta.data?.mensaje ||
+          respuesta.mensaje ||
             "Ticket validado correctamente. Pasajero autorizado para abordar.",
         );
       } catch (error: unknown) {
@@ -366,6 +359,7 @@ function EscanearTicket() {
         setMensaje(mensajeError);
       } finally {
         setProcesando(false);
+        procesandoRef.current = false;
       }
     };
 

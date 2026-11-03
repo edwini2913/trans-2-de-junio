@@ -1,3 +1,4 @@
+
 import {
   BadRequestException,
   Injectable,
@@ -567,6 +568,20 @@ export class BlockchainService implements OnModuleInit {
     for (
       const bloque of bloques
     ) {
+      // MEJORA: comprobar el contenido almacenado
+      // sin modificar los bloques existentes.
+      const hashDatosCalculado =
+        this.calcularHash(
+          bloque.datosTicket,
+        );
+
+      if (
+        hashDatosCalculado !==
+        bloque.hashDatos
+      ) {
+        return false;
+      }
+
       const hashCalculado =
         this.calcularHash(
           this.construirContenidoBloque(

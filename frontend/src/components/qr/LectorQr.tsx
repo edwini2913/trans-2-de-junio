@@ -196,6 +196,15 @@ function LectorQr({
   const montadoRef =
     useRef(true);
 
+  // Evita reactivar una cámara de una sesión cancelada.
+  const activoRef = useRef(activo);
+  activoRef.current = activo;
+
+  const sesionRef = useRef(0);
+
+  // Un mismo QR se entrega una sola vez por sesión.
+  const lecturaEntregadaRef = useRef(false);
+
   const onCodigoDetectadoRef =
     useRef(onCodigoDetectado);
 
@@ -234,6 +243,9 @@ function LectorQr({
 
   const detenerScanner =
     useCallback(async () => {
+      // Invalida los inicios de cámara todavía pendientes.
+      sesionRef.current += 1;
+
       const scanner =
         scannerRef.current;
 
@@ -305,10 +317,14 @@ function LectorQr({
       }
 
       iniciandoRef.current = true;
+      lecturaEntregadaRef.current = false;
+      const sesion = ++sesionRef.current;
 
       setCargandoCamara(true);
       setScannerPreparado(false);
       setMensajeError("");
+
+      let scannerEnInicio: Html5QrcodeInstance | null = null;
 
       try {
         const modulo =
@@ -318,7 +334,8 @@ function LectorQr({
 
         if (
           !montadoRef.current ||
-          !activo
+          !activoRef.current ||
+          sesion !== sesionRef.current
         ) {
           return;
         }
@@ -333,6 +350,7 @@ function LectorQr({
 
         scannerRef.current =
           scanner;
+        scannerEnInicio = scanner;
 
         const configuracion: ConfiguracionCamara =
           {
@@ -354,6 +372,10 @@ function LectorQr({
           ) => {
             if (
               procesandoRef.current ||
+              lecturaEntregadaRef.current ||
+              !montadoRef.current ||
+              !activoRef.current ||
+              sesion !== sesionRef.current ||
               !textoEscaneado.trim()
             ) {
               return;
@@ -361,6 +383,7 @@ function LectorQr({
 
             procesandoRef.current =
               true;
+            lecturaEntregadaRef.current = true;
 
             try {
               await detenerScanner();
@@ -407,7 +430,8 @@ function LectorQr({
 
           if (
             !montadoRef.current ||
-            !activo
+            !activoRef.current ||
+            sesion !== sesionRef.current
           ) {
             return;
           }
@@ -433,6 +457,14 @@ function LectorQr({
             throw errorCamaraTrasera;
           }
 
+          if (
+            !montadoRef.current ||
+            !activoRef.current ||
+            sesion !== sesionRef.current
+          ) {
+            return;
+          }
+
           const scannerAlternativo =
             new modulo.Html5Qrcode(
               ID_LECTOR,
@@ -443,6 +475,7 @@ function LectorQr({
 
           scannerRef.current =
             scannerAlternativo;
+          scannerEnInicio = scannerAlternativo;
 
           await scannerAlternativo.start(
             camara.id,
@@ -459,9 +492,30 @@ function LectorQr({
         }
 
         if (
-          !montadoRef.current
+          !montadoRef.current ||
+          !activoRef.current ||
+          sesion !== sesionRef.current
         ) {
-          await detenerScanner();
+          // Una lectura o un cambio de pantalla canceló
+          // este inicio mientras esperaba a la cámara.
+          const scannerPendiente = scannerEnInicio;
+          if (scannerPendiente) {
+            try {
+              if (scannerPendiente.isScanning) {
+                await scannerPendiente.stop();
+              }
+            } catch {
+              // La cámara puede haberse detenido antes.
+            }
+            try {
+              await scannerPendiente.clear();
+            } catch {
+              // El lector puede estar ya vacío.
+            }
+            if (scannerRef.current === scannerPendiente) {
+              scannerRef.current = null;
+            }
+          }
           return;
         }
 
@@ -472,15 +526,21 @@ function LectorQr({
           true,
         );
       } catch (error) {
-        console.error(
+        const cancelado =
+          !montadoRef.current ||
+          !activoRef.current ||
+          sesion !== sesionRef.current;
+
+        if (!cancelado) console.error(
           "No se pudo iniciar el lector QR:",
           error,
         );
 
-        const scanner =
-          scannerRef.current;
+        const scanner = scannerEnInicio;
 
-        scannerRef.current = null;
+        if (scannerRef.current === scanner) {
+          scannerRef.current = null;
+        }
 
         if (scanner) {
           try {
@@ -500,7 +560,7 @@ function LectorQr({
           }
         }
 
-        if (montadoRef.current) {
+        if (montadoRef.current && !cancelado) {
           setMensajeError(
             obtenerMensajeCamara(
               error,
