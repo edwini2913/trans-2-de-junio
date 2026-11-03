@@ -151,6 +151,17 @@ export class BlockchainService implements OnModuleInit {
           }),
         );
 
+      // El timestamp sin TZ puede guardarse distinto en el VPS.
+      // Se calcula el hash definitivo con la FECHA EFECTIVAMENTE GUARDADA.
+      // Todo ocurre dentro de la misma transacción del ticket.
+      const fechaGuardada = await this.obtenerFechaBloqueLiteral(manager, ticket.id);
+      const fechaISO = new Date(`${fechaGuardada}-04:00`).toISOString();
+      bloque.hashBloque = this.calcularHash(
+        [bloque.indice, bloque.ticketId, bloque.hashDatos,
+          bloque.hashAnterior, fechaISO].join('|'),
+      );
+      await repositorio.save(bloque);
+
       await this.registrarAuditoriaSegura({
         usuarioId:
           ticket.reserva.usuario?.id ??
@@ -365,20 +376,11 @@ export class BlockchainService implements OnModuleInit {
         hashActual ===
         bloque.hashDatos;
 
-      const hashBloqueCalculado =
-        this.calcularHash(
-          this.construirContenidoBloque(
-            bloque.indice,
-            bloque.ticketId,
-            bloque.hashDatos,
-            bloque.hashAnterior,
-            bloque.fechaBloque,
-          ),
-        );
-
-      const bloqueIntegro =
-        hashBloqueCalculado ===
-        bloque.hashBloque;
+      const fechaOriginal = await this.obtenerFechaBloqueLiteral(
+        manager ?? this.dataSource.manager,
+        bloque.ticketId,
+      );
+      const bloqueIntegro = this.hashBloqueCoincide(bloque, fechaOriginal);
 
       const cadenaValida =
         await this.verificarCadena(
@@ -593,23 +595,18 @@ export class BlockchainService implements OnModuleInit {
         return fallar(bloque, 'CONTENIDO_NO_COINCIDE_CON_HASH_DATOS');
       }
 
-      let contenidoBloque: string;
+      let fechaOriginal: string;
       try {
-        contenidoBloque = this.construirContenidoBloque(
-          bloque.indice,
+        fechaOriginal = await this.obtenerFechaBloqueLiteral(
+          manager ?? this.dataSource.manager,
           bloque.ticketId,
-          bloque.hashDatos,
-          bloque.hashAnterior,
-          bloque.fechaBloque,
         );
       } catch {
         return fallar(bloque, 'FECHA_BLOQUE_INVALIDA');
       }
 
-      if (this.calcularHash(contenidoBloque) !== bloque.hashBloque) {
-        // Posible causa: fecha_bloque es TIMESTAMP sin zona horaria.
-        // No se altera ni se acepta otro hash sin investigar el origen.
-        return fallar(bloque, 'HASH_BLOQUE_NO_COINCIDE_REVISAR_FECHA_Y_ZONA_HORARIA');
+      if (!this.hashBloqueCoincide(bloque, fechaOriginal)) {
+        return fallar(bloque, 'HASH_BLOQUE_NO_COINCIDE_CON_FECHA_ORIGINAL');
       }
 
       hashAnteriorEsperado = bloque.hashBloque;
@@ -810,6 +807,58 @@ export class BlockchainService implements OnModuleInit {
         null,
 
       asientos,
+    });
+  }
+
+  /**
+   * Recupera la fecha literal guardada en TIMESTAMP WITHOUT TIME ZONE.
+   * No depende de Europe/Berlin ni de la TZ del proceso Node.
+   */
+  private async obtenerFechaBloqueLiteral(
+    manager: EntityManager,
+    ticketId: string,
+  ): Promise<string> {
+    const filas: Array<{ fecha: string }> = await manager.query(
+      `SELECT to_char(fecha_bloque, 'YYYY-MM-DD"T"HH24:MI:SS.MS') AS fecha
+         FROM sistema.blockchain_tickets
+        WHERE ticket_id = $1`,
+      [ticketId],
+    );
+    const fecha = filas[0]?.fecha;
+    if (!fecha || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/.test(fecha)) {
+      throw new Error('Fecha original del bloque inexistente o inválida.');
+    }
+    return fecha;
+  }
+
+  /**
+   * Compatibilidad estricta con hashes históricos creados usando
+   * las interpretaciones Bolivia, UTC o zona local antigua de Node.
+   * Un bloque solo pasa si SHA-256 coincide EXACTAMENTE con el almacenado.
+   */
+  private hashBloqueCoincide(
+    bloque: BloqueTicket,
+    fechaLiteral: string,
+  ): boolean {
+    const fechasISO = new Set<string>();
+    const agregar = (fecha: Date): void => {
+      if (!Number.isNaN(fecha.getTime())) {
+        fechasISO.add(fecha.toISOString());
+      }
+    };
+    agregar(new Date(`${fechaLiteral}-04:00`));
+    agregar(new Date(`${fechaLiteral}Z`));
+    agregar(new Date(bloque.fechaBloque));
+
+    return [...fechasISO].some((fechaISO) => {
+      const contenido = [
+        bloque.indice,
+        bloque.ticketId,
+        bloque.hashDatos,
+        bloque.hashAnterior,
+        fechaISO,
+      ].join('|');
+      return this.calcularHash(contenido) === bloque.hashBloque;
     });
   }
 
