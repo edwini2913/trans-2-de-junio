@@ -1,3 +1,4 @@
+
 import {
   BadRequestException,
   ConflictException,
@@ -23,11 +24,8 @@ import {
 import * as QRCode from 'qrcode';
 
 import { Venta } from './entities/venta.entity';
-
 import { CrearVentaOficinaDto } from './dto/crear-venta-oficina.dto';
-
 import { Usuario } from '../users/entities/usuario.entity';
-
 import { Viaje } from '../viajes/entities/viaje.entity';
 
 import {
@@ -40,7 +38,9 @@ import {
   Reserva,
 } from '../reservas/entities/reserva.entity';
 
-import { DetalleReserva } from '../reservas/entities/detalle-reserva.entity';
+import {
+  DetalleReserva,
+} from '../reservas/entities/detalle-reserva.entity';
 
 import {
   EstadoPago,
@@ -51,7 +51,10 @@ import {
   EstadoTicket,
   Ticket,
 } from '../tickets/entities/ticket.entity';
-import { BlockchainService } from '../blockchain/blockchain.service';
+
+import {
+  BlockchainService,
+} from '../blockchain/blockchain.service';
 
 @Injectable()
 export class VentasService {
@@ -66,6 +69,11 @@ export class VentasService {
 
     private readonly blockchainService: BlockchainService,
   ) {}
+
+  /* =====================================================
+     REGISTRAR VENTA DE OFICINA
+     EFECTIVO / QR / TRANSFERENCIA
+  ===================================================== */
 
   async crearVentaOficina(
     dto: CrearVentaOficinaDto,
@@ -104,47 +112,37 @@ export class VentasService {
         );
 
         const precioUnitario =
-          this.obtenerPrecioValido(
-            viaje,
-          );
+          this.obtenerPrecioValido(viaje);
 
         const cantidadPasajes =
           asientos.length;
 
         const montoTotal =
-          precioUnitario *
-          cantidadPasajes;
+          precioUnitario * cantidadPasajes;
 
         const codigoOperacion =
           this.generarCodigoOperacion();
 
         /*
-         * UNA SOLA VENTA.
-         *
-         * La entidad Venta actualmente tiene una relación
-         * directa con un asiento. Se guarda el primer asiento
-         * como referencia principal de la operación.
-         *
-         * La lista completa de asientos se guarda en los
-         * detalles de la única reserva.
+         * UNA VENTA PARA LA OPERACIÓN.
+         * SE GUARDA EL PRIMER ASIENTO COMO
+         * REFERENCIA EN LA ENTIDAD VENTA.
          */
-        const asientoPrincipal =
-          asientos[0];
 
-        const venta =
-          await this.crearVenta(
-            manager,
-            dto,
-            usuario,
-            viaje,
-            asientoPrincipal,
-            montoTotal,
-            codigoOperacion,
-          );
+        const venta = await this.crearVenta(
+          manager,
+          dto,
+          usuario,
+          viaje,
+          asientos[0],
+          montoTotal,
+          codigoOperacion,
+        );
 
         /*
-         * UNA SOLA RESERVA PARA TODOS LOS ASIENTOS.
+         * UNA RESERVA PARA TODOS LOS ASIENTOS.
          */
+
         const reserva =
           await this.crearReserva(
             manager,
@@ -153,10 +151,10 @@ export class VentasService {
           );
 
         /*
-         * UN DETALLE POR CADA ASIENTO.
+         * REGISTRAR DETALLES Y OCUPAR ASIENTOS.
          */
-        const detalles: DetalleReserva[] =
-          [];
+
+        const detalles: DetalleReserva[] = [];
 
         for (const asiento of asientos) {
           const detalle =
@@ -185,8 +183,7 @@ export class VentasService {
           Math.max(
             0,
             Number(
-              viaje.asientosDisponibles ||
-                0,
+              viaje.asientosDisponibles || 0,
             ) - cantidadPasajes,
           );
 
@@ -196,52 +193,84 @@ export class VentasService {
         );
 
         /*
-         * UN SOLO TICKET QR PARA LA RESERVA COMPLETA.
+         * GENERAR UN ÚNICO TICKET QR.
          */
-        const ticket =
-          await this.crearTicket(
-            manager,
-            reserva,
+
+        const ticket = await this.crearTicket(
+          manager,
+          reserva,
+        );
+
+        /*
+         * RECUPERAR EL TICKET CON SUS RELACIONES.
+         */
+
+        const ticketCompleto =
+          await manager.findOne(
+            Ticket,
+            {
+              where: {
+                id: ticket.id,
+              },
+
+              relations: {
+                reserva: {
+                  viaje: {
+                    ruta: true,
+                    vehiculo: true,
+                  },
+
+                  usuario: true,
+
+                  detalles: {
+                    asientoViaje: true,
+                  },
+                },
+              },
+            },
           );
 
-        const ticketCompleto = await manager.findOne(Ticket, {
-          where: { id: ticket.id },
-          relations: {
-            reserva: {
-              viaje: { ruta: true, vehiculo: true },
-              usuario: true,
-              detalles: { asientoViaje: true },
-            },
-          },
-        });
-
         if (!ticketCompleto) {
-          throw new NotFoundException('No se pudo recuperar el ticket generado');
+          throw new NotFoundException(
+            'No se pudo recuperar el ticket generado',
+          );
         }
 
-        const bloque = await this.blockchainService.registrarTicket(
-          manager,
-          ticketCompleto,
-        );
+        /*
+         * REGISTRAR EL TICKET EN BLOCKCHAIN.
+         */
 
-        return this.construirRespuestaVenta(
-          {
-            dto,
-            viaje,
-            asientos,
-            venta,
-            reserva,
-            detalles,
-            ticket: ticketCompleto,
-            bloque,
-            codigoOperacion,
-            precioUnitario,
-            montoTotal,
-          },
-        );
+        const bloque =
+          await this.blockchainService.registrarTicket(
+            manager,
+            ticketCompleto,
+          );
+
+        /*
+         * DEVOLVER LOS DATOS DEL TICKET
+         * AL FRONTEND.
+         */
+
+        return this.construirRespuestaVenta({
+          dto,
+          viaje,
+          asientos,
+          venta,
+          reserva,
+          detalles,
+          ticket: ticketCompleto,
+          bloque,
+          codigoOperacion,
+          precioUnitario,
+          montoTotal,
+        });
       },
     );
   }
+
+  /* =====================================================
+     REPORTES DE VENTAS
+  ===================================================== */
 
   async obtenerReporte() {
     const [
@@ -303,57 +332,48 @@ export class VentasService {
 
     return {
       resumen: {
-        totalVentas:
-          resumen.totalPasajes,
-
-        totalPasajes:
-          resumen.totalPasajes,
-
-        totalRecaudado:
-          resumen.totalRecaudado,
-
-        totalEfectivo:
-          resumen.totalEfectivo,
-
-        totalQr:
-          resumen.totalQr,
+        totalVentas: resumen.totalPasajes,
+        totalPasajes: resumen.totalPasajes,
+        totalRecaudado: resumen.totalRecaudado,
+        totalEfectivo: resumen.totalEfectivo,
+        totalQr: resumen.totalQr,
       },
 
       liquidaciones,
 
       ventasPorVehiculo:
-        this.agruparVentasPorVehiculo(
-          ventas,
-        ),
+        this.agruparVentasPorVehiculo(ventas),
 
       ventasPorRuta:
-        this.agruparVentasPorRuta(
-          ventas,
-        ),
+        this.agruparVentasPorRuta(ventas),
 
       ventas,
     };
   }
 
   private async buscarPagosQrAprobados(): Promise<Pago[]> {
-    return this.dataSource.getRepository(Pago).find({
-      where: {
-        estado: EstadoPago.APROBADO,
-      },
-
-      relations: {
-        usuario: true,
-        viaje: {
-          ruta: true,
-          vehiculo: true,
+    return this.dataSource
+      .getRepository(Pago)
+      .find({
+        where: {
+          estado: EstadoPago.APROBADO,
         },
-        reserva: true,
-      },
 
-      order: {
-        fechaRevision: 'DESC',
-      },
-    });
+        relations: {
+          usuario: true,
+
+          viaje: {
+            ruta: true,
+            vehiculo: true,
+          },
+
+          reserva: true,
+        },
+
+        order: {
+          fechaRevision: 'DESC',
+        },
+      });
   }
 
   private async buscarReservasPendientesVigentes(): Promise<Reserva[]> {
@@ -368,10 +388,12 @@ export class VentasService {
 
         relations: {
           usuario: true,
+
           viaje: {
             ruta: true,
             vehiculo: true,
           },
+
           detalles: {
             asientoViaje: true,
           },
@@ -389,18 +411,20 @@ export class VentasService {
   }
 
   private async buscarViajesParaReporte(): Promise<Viaje[]> {
-    const viajes = await this.dataSource.getRepository(Viaje).find({
-      relations: {
-        ruta: true,
-        vehiculo: true,
-        asientos: true,
-      },
+    const viajes = await this.dataSource
+      .getRepository(Viaje)
+      .find({
+        relations: {
+          ruta: true,
+          vehiculo: true,
+          asientos: true,
+        },
 
-      order: {
-        fecha: 'DESC',
-        horaSalida: 'DESC',
-      },
-    });
+        order: {
+          fecha: 'DESC',
+          horaSalida: 'DESC',
+        },
+      });
 
     return viajes.filter(
       (viaje) =>
@@ -408,6 +432,10 @@ export class VentasService {
         'CANCELADO',
     );
   }
+
+  /* =====================================================
+     CONSTRUIR LIQUIDACIÓN POR VIAJE
+  ===================================================== */
 
   private construirLiquidacionViaje(
     viaje: Viaje,
@@ -419,100 +447,138 @@ export class VentasService {
       (venta) => venta.viaje?.id === viaje.id,
     );
 
-    const ventasEfectivo = ventasViaje.filter(
-      (venta) =>
-        String(venta.metodoPago).toUpperCase() ===
-        'EFECTIVO',
-    );
+    const ventasEfectivo =
+      ventasViaje.filter(
+        (venta) =>
+          String(
+            venta.metodoPago,
+          ).toUpperCase() === 'EFECTIVO',
+      );
 
-    const ventasQrOficina = ventasViaje.filter(
-      (venta) =>
-        String(venta.metodoPago).toUpperCase() === 'QR',
-    );
+    const ventasQrOficina =
+      ventasViaje.filter(
+        (venta) =>
+          String(
+            venta.metodoPago,
+          ).toUpperCase() === 'QR',
+      );
 
-    const pagosQrViaje = pagosQrAprobados.filter(
-      (pago) => pago.viaje?.id === viaje.id,
-    );
+    const pagosQrViaje =
+      pagosQrAprobados.filter(
+        (pago) =>
+          pago.viaje?.id === viaje.id,
+      );
 
     const reservasPendientesViaje =
       reservasPendientes.filter(
-        (reserva) => reserva.viaje?.id === viaje.id,
+        (reserva) =>
+          reserva.viaje?.id === viaje.id,
       );
 
-    const precioUnitario = Number(viaje.precio || 0);
+    const precioUnitario =
+      Number(viaje.precio || 0);
 
-    const contarAsientosVenta = (venta: Venta) => {
-      const monto = Number(venta.monto || 0);
+    const contarAsientosVenta = (
+      venta: Venta,
+    ) => {
+      const monto = Number(
+        venta.monto || 0,
+      );
 
-      if (precioUnitario <= 0 || monto <= 0) {
+      if (
+        precioUnitario <= 0 ||
+        monto <= 0
+      ) {
         return 1;
       }
 
       return Math.max(
         1,
-        Math.round(monto / precioUnitario),
+        Math.round(
+          monto / precioUnitario,
+        ),
       );
     };
 
-    const asientosEfectivo = ventasEfectivo.reduce(
-      (total, venta) => total + contarAsientosVenta(venta),
-      0,
-    );
+    const asientosEfectivo =
+      ventasEfectivo.reduce(
+        (total, venta) =>
+          total +
+          contarAsientosVenta(venta),
+        0,
+      );
 
-    const asientosQrOficina = ventasQrOficina.reduce(
-      (total, venta) => total + contarAsientosVenta(venta),
-      0,
-    );
+    const asientosQrOficina =
+      ventasQrOficina.reduce(
+        (total, venta) =>
+          total +
+          contarAsientosVenta(venta),
+        0,
+      );
 
-    const asientosQrPasajero = pagosQrViaje.reduce(
-      (total, pago) =>
-        total +
-        (Array.isArray(pago.asientoIds)
-          ? pago.asientoIds.length
-          : 0),
-      0,
-    );
+    const asientosQrPasajero =
+      pagosQrViaje.reduce(
+        (total, pago) =>
+          total +
+          (
+            Array.isArray(pago.asientoIds)
+              ? pago.asientoIds.length
+              : 0
+          ),
+        0,
+      );
 
-    const montoEfectivo = ventasEfectivo.reduce(
-      (total, venta) =>
-        total + Number(venta.monto || 0),
-      0,
-    );
+    const montoEfectivo =
+      ventasEfectivo.reduce(
+        (total, venta) =>
+          total + Number(venta.monto || 0),
+        0,
+      );
 
-    const montoQrOficina = ventasQrOficina.reduce(
-      (total, venta) =>
-        total + Number(venta.monto || 0),
-      0,
-    );
+    const montoQrOficina =
+      ventasQrOficina.reduce(
+        (total, venta) =>
+          total + Number(venta.monto || 0),
+        0,
+      );
 
-    const montoQrPasajero = pagosQrViaje.reduce(
-      (total, pago) =>
-        total + Number(pago.monto || 0),
-      0,
-    );
+    const montoQrPasajero =
+      pagosQrViaje.reduce(
+        (total, pago) =>
+          total + Number(pago.monto || 0),
+        0,
+      );
 
-    const pendientes = reservasPendientesViaje.reduce(
-      (total, reserva) =>
-        total +
-        (Array.isArray(reserva.detalles)
-          ? reserva.detalles.length
-          : 0),
-      0,
-    );
+    const pendientes =
+      reservasPendientesViaje.reduce(
+        (total, reserva) =>
+          total +
+          (
+            Array.isArray(reserva.detalles)
+              ? reserva.detalles.length
+              : 0
+          ),
+        0,
+      );
 
-    const asientosViaje = Array.isArray(viaje.asientos)
-      ? viaje.asientos
-      : [];
+    const asientosViaje =
+      Array.isArray(viaje.asientos)
+        ? viaje.asientos
+        : [];
 
     const capacidad = Math.max(
-      Number(viaje.vehiculo?.capacidad || 0),
+      Number(
+        viaje.vehiculo?.capacidad || 0,
+      ),
       asientosViaje.length,
     );
 
-    const disponiblesRegistrados = asientosViaje.filter(
-      (asiento) =>
-        asiento.estado === EstadoAsientoViaje.DISPONIBLE,
-    ).length;
+    const disponiblesRegistrados =
+      asientosViaje.filter(
+        (asiento) =>
+          asiento.estado ===
+          EstadoAsientoViaje.DISPONIBLE,
+      ).length;
 
     const disponibles =
       asientosViaje.length > 0
@@ -520,59 +586,85 @@ export class VentasService {
         : Math.max(
             0,
             Number(
-              viaje.asientosDisponibles ?? capacidad,
+              viaje.asientosDisponibles ??
+                capacidad,
             ),
           );
 
     const cantidadQr =
-      asientosQrOficina + asientosQrPasajero;
+      asientosQrOficina +
+      asientosQrPasajero;
 
-    const montoQr = montoQrOficina + montoQrPasajero;
+    const montoQr =
+      montoQrOficina +
+      montoQrPasajero;
 
-    const totalVendido = asientosEfectivo + cantidadQr;
-    const totalRecaudado = montoEfectivo + montoQr;
+    const totalVendido =
+      asientosEfectivo +
+      cantidadQr;
+
+    const totalRecaudado =
+      montoEfectivo +
+      montoQr;
+
     const asientosContabilizados =
-      totalVendido + pendientes + disponibles;
+      totalVendido +
+      pendientes +
+      disponibles;
 
     const detallesPasajeros = [
       ...ventasEfectivo.map((venta) => ({
         id: venta.id,
         codigo: venta.codigoVenta,
+
         pasajero:
           venta.pasajeroNombre ||
           `${venta.usuario?.nombre || ''} ${
             venta.usuario?.apellido || ''
           }`.trim() ||
           'Pasajero',
+
         ci: venta.pasajeroCi || '---',
+
         asientos: venta.asiento?.numero
           ? [venta.asiento.numero]
           : [],
-        cantidad: contarAsientosVenta(venta),
+
+        cantidad:
+          contarAsientosVenta(venta),
+
         metodoPago: 'EFECTIVO',
         referencia: null,
         monto: Number(venta.monto || 0),
         fecha: venta.fechaVenta,
       })),
+
       ...ventasQrOficina.map((venta) => ({
         id: venta.id,
         codigo: venta.codigoVenta,
+
         pasajero:
           venta.pasajeroNombre ||
           `${venta.usuario?.nombre || ''} ${
             venta.usuario?.apellido || ''
           }`.trim() ||
           'Pasajero',
+
         ci: venta.pasajeroCi || '---',
+
         asientos: venta.asiento?.numero
           ? [venta.asiento.numero]
           : [],
-        cantidad: contarAsientosVenta(venta),
+
+        cantidad:
+          contarAsientosVenta(venta),
+
         metodoPago: 'QR',
         referencia: null,
         monto: Number(venta.monto || 0),
         fecha: venta.fechaVenta,
       })),
+
       ...pagosQrViaje.map((pago) => {
         const ids = new Set(
           Array.isArray(pago.asientoIds)
@@ -583,21 +675,36 @@ export class VentasService {
         return {
           id: pago.id,
           codigo: pago.referencia,
+
           pasajero:
             `${pago.usuario?.nombre || ''} ${
               pago.usuario?.apellido || ''
             }`.trim() || 'Pasajero',
+
           ci: pago.usuario?.ci || '---',
+
           asientos: asientosViaje
-            .filter((asiento) => ids.has(asiento.id))
-            .map((asiento) => asiento.numero)
-            .sort((a, b) => Number(a) - Number(b)),
+            .filter(
+              (asiento) =>
+                ids.has(asiento.id),
+            )
+            .map(
+              (asiento) =>
+                asiento.numero,
+            )
+            .sort(
+              (a, b) =>
+                Number(a) - Number(b),
+            ),
+
           cantidad: ids.size,
           metodoPago: 'QR',
           referencia: pago.referencia,
           monto: Number(pago.monto || 0),
+
           fecha:
-            pago.fechaRevision || pago.fechaRegistro,
+            pago.fechaRevision ||
+            pago.fechaRegistro,
         };
       }),
     ].sort(
@@ -608,37 +715,59 @@ export class VentasService {
 
     return {
       viajeId: viaje.id,
+
       numeroFlota:
         viaje.vehiculo?.numeroFlota || null,
-      placa: viaje.vehiculo?.placa || 'Sin placa',
+
+      placa:
+        viaje.vehiculo?.placa ||
+        'Sin placa',
+
       vehiculo:
         `${viaje.vehiculo?.marca || ''} ${
           viaje.vehiculo?.modelo || ''
         }`.trim() || 'Sin vehículo',
-      rutaId: viaje.ruta?.id || null,
-      origen: viaje.ruta?.origen || 'Sin origen',
-      destino: viaje.ruta?.destino || 'Sin destino',
+
+      rutaId:
+        viaje.ruta?.id || null,
+
+      origen:
+        viaje.ruta?.origen ||
+        'Sin origen',
+
+      destino:
+        viaje.ruta?.destino ||
+        'Sin destino',
+
       fecha: viaje.fecha,
       horaSalida: viaje.horaSalida,
       precioUnitario,
       capacidad,
+
       efectivo: {
         cantidad: asientosEfectivo,
         monto: montoEfectivo,
       },
+
       qr: {
         cantidad: cantidadQr,
         monto: montoQr,
       },
+
       pendientes,
       disponibles,
       totalVendido,
       totalRecaudado,
       asientosContabilizados,
+
       diferenciaCapacidad:
-        capacidad - asientosContabilizados,
+        capacidad -
+        asientosContabilizados,
+
       cuadreCorrecto:
-        capacidad === asientosContabilizados,
+        capacidad ===
+        asientosContabilizados,
+
       detallesPasajeros,
     };
   }
@@ -647,12 +776,14 @@ export class VentasService {
     return this.buscarTodasLasVentas();
   }
 
+  /* =====================================================
+     VALIDAR DATOS DE VENTA
+  ===================================================== */
+
   private validarDatosVenta(
     dto: CrearVentaOficinaDto,
   ): void {
-    if (
-      !dto.pasajeroNombre?.trim()
-    ) {
+    if (!dto.pasajeroNombre?.trim()) {
       throw new BadRequestException(
         'El nombre del pasajero es obligatorio',
       );
@@ -664,9 +795,7 @@ export class VentasService {
       );
     }
 
-    if (
-      !dto.pasajeroTelefono?.trim()
-    ) {
+    if (!dto.pasajeroTelefono?.trim()) {
       throw new BadRequestException(
         'El teléfono del pasajero es obligatorio',
       );
@@ -685,9 +814,7 @@ export class VentasService {
     }
 
     if (
-      !Array.isArray(
-        dto.asientoIds,
-      ) ||
+      !Array.isArray(dto.asientoIds) ||
       dto.asientoIds.length === 0
     ) {
       throw new BadRequestException(
@@ -709,8 +836,7 @@ export class VentasService {
     }
 
     if (
-      new Set(dto.asientoIds)
-        .size !==
+      new Set(dto.asientoIds).size !==
       dto.asientoIds.length
     ) {
       throw new BadRequestException(
@@ -759,6 +885,10 @@ export class VentasService {
     return precio;
   }
 
+  /* =====================================================
+     BUSCAR USUARIO OPCIONAL
+  ===================================================== */
+
   private async obtenerUsuarioOpcional(
     manager: EntityManager,
     usuarioId?: string,
@@ -786,6 +916,10 @@ export class VentasService {
     return usuario;
   }
 
+  /* =====================================================
+     BLOQUEAR VIAJE DURANTE LA TRANSACCIÓN
+  ===================================================== */
+
   private async obtenerViajeBloqueado(
     manager: EntityManager,
     viajeId: string,
@@ -804,8 +938,7 @@ export class VentasService {
           },
 
           lock: {
-            mode:
-              'pessimistic_write',
+            mode: 'pessimistic_write',
           },
         },
       );
@@ -818,6 +951,10 @@ export class VentasService {
 
     return viaje;
   }
+
+  /* =====================================================
+     VERIFICAR Y BLOQUEAR ASIENTOS
+  ===================================================== */
 
   private async obtenerAsientosBloqueados(
     manager: EntityManager,
@@ -842,8 +979,7 @@ export class VentasService {
           },
 
           lock: {
-            mode:
-              'pessimistic_write',
+            mode: 'pessimistic_write',
           },
         },
       );
@@ -875,7 +1011,8 @@ export class VentasService {
           Boolean(asiento.bloqueadoHasta) &&
           Boolean(
             asiento.bloqueadoHasta &&
-              asiento.bloqueadoHasta > new Date(),
+              asiento.bloqueadoHasta >
+                new Date(),
           );
 
         if (!bloqueoVigente) {
@@ -919,6 +1056,10 @@ export class VentasService {
 
     return asientos;
   }
+
+  /* =====================================================
+     GUARDAR VENTA
+  ===================================================== */
 
   private async crearVenta(
     manager: EntityManager,
@@ -967,7 +1108,6 @@ export class VentasService {
           dto.metodoPago,
 
         estado: 'PAGADA',
-
         origenVenta: 'OFICINA',
       },
     );
@@ -977,6 +1117,10 @@ export class VentasService {
       venta,
     );
   }
+
+  /* =====================================================
+     CREAR RESERVA CONFIRMADA
+  ===================================================== */
 
   private async crearReserva(
     manager: EntityManager,
@@ -1014,6 +1158,10 @@ export class VentasService {
     );
   }
 
+  /* =====================================================
+     DETALLE DE RESERVA POR ASIENTO
+  ===================================================== */
+
   private async crearDetalleReserva(
     manager: EntityManager,
     reserva: Reserva,
@@ -1040,6 +1188,10 @@ export class VentasService {
       detalle,
     );
   }
+
+  /* =====================================================
+     GENERAR TICKET QR
+  ===================================================== */
 
   private async crearTicket(
     manager: EntityManager,
@@ -1078,8 +1230,7 @@ export class VentasService {
         {
           width: 700,
           margin: 1,
-          errorCorrectionLevel:
-            'H',
+          errorCorrectionLevel: 'H',
         },
       );
 
@@ -1109,15 +1260,47 @@ export class VentasService {
       ticket,
     );
   }
-    private async obtenerSiguienteNumeroTicket(
+
+  /* =====================================================
+     NUMERACIÓN SEGURA DE TICKETS
+
+     UTILIZA EL MISMO BLOQUEO DE TicketsService
+     Y NO DEPENDE DE tickets_numero_seq
+  ===================================================== */
+
+  private async obtenerSiguienteNumeroTicket(
     manager: EntityManager,
   ): Promise<number> {
+    /*
+     * Bloqueo compartido por transacción.
+     *
+     * Para evitar duplicados, cualquier
+     * otra función que genere números
+     * debe usar exactamente esta clave.
+     */
+
+    await manager.query(`
+      SELECT pg_advisory_xact_lock(
+        hashtext(
+          'sistema.tickets.numero_ticket'
+        )
+      )
+    `);
+
+    /*
+     * Buscar el mayor número de ticket
+     * registrado en PostgreSQL.
+     */
+
     const resultado: Array<{
       numero?: string | number;
     }> = await manager.query(`
-      SELECT nextval(
-        'sistema.tickets_numero_seq'
-      ) AS numero
+      SELECT
+        COALESCE(
+          MAX(numero_ticket),
+          0
+        ) + 1 AS numero
+      FROM sistema.tickets
     `);
 
     const numero = Number(
@@ -1125,7 +1308,7 @@ export class VentasService {
     );
 
     if (
-      !Number.isFinite(numero) ||
+      !Number.isSafeInteger(numero) ||
       numero <= 0
     ) {
       throw new BadRequestException(
@@ -1135,6 +1318,14 @@ export class VentasService {
 
     return numero;
   }
+
+  /* =====================================================
+     RESPUESTA AL FRONTEND
+
+     UNA VENTA
+     UNA RESERVA
+     UN TICKET QR
+  ===================================================== */
 
   private construirRespuestaVenta({
     dto,
@@ -1156,7 +1347,10 @@ export class VentasService {
     reserva: Reserva;
     detalles: DetalleReserva[];
     ticket: Ticket;
-    bloque: { indice: string; hashBloque: string };
+    bloque: {
+      indice: string;
+      hashBloque: string;
+    };
     codigoOperacion: string;
     precioUnitario: number;
     montoTotal: number;
@@ -1175,13 +1369,11 @@ export class VentasService {
 
     const ventaRespuesta = {
       id: venta.id,
-
       codigoVenta:
         venta.codigoVenta,
 
-      monto: Number(
-        venta.monto,
-      ),
+      monto:
+        Number(venta.monto),
 
       total: montoTotal,
 
@@ -1193,7 +1385,8 @@ export class VentasService {
       metodoPago:
         venta.metodoPago,
 
-      estado: venta.estado,
+      estado:
+        venta.estado,
 
       fechaVenta:
         venta.fechaVenta,
@@ -1211,7 +1404,8 @@ export class VentasService {
       codigoReserva:
         reserva.codigoReserva,
 
-      estado: reserva.estado,
+      estado:
+        reserva.estado,
 
       asientos:
         asientosRespuesta,
@@ -1248,7 +1442,6 @@ export class VentasService {
         asientos.length,
 
       precioUnitario,
-
       montoTotal,
 
       asientos:
@@ -1274,9 +1467,7 @@ export class VentasService {
         asientos.length,
 
       precioUnitario,
-
       montoTotal,
-
       total: montoTotal,
 
       metodoPago:
@@ -1310,7 +1501,8 @@ export class VentasService {
             viaje.ruta?.destino,
         },
 
-        fecha: viaje.fecha,
+        fecha:
+          viaje.fecha,
 
         horaSalida:
           viaje.horaSalida,
@@ -1348,23 +1540,21 @@ export class VentasService {
         (detalle, indice) => ({
           id: detalle.id,
 
-          precio: Number(
-            detalle.precio,
-          ),
+          precio:
+            Number(detalle.precio),
 
           asientoViajeId:
             asientos[indice]?.id,
 
           numeroAsiento:
-            asientos[indice]
-              ?.numero,
+            asientos[indice]?.numero,
         }),
       ),
 
       /*
-       * RESPUESTA PRINCIPAL:
-       * UNA VENTA, UNA RESERVA Y UN TICKET.
+       * OBJETOS PRINCIPALES.
        */
+
       venta:
         ventaRespuesta,
 
@@ -1375,10 +1565,10 @@ export class VentasService {
         ticketRespuesta,
 
       /*
-       * Se conservan también los arreglos para mantener
-       * compatibilidad con otros componentes anteriores.
-       * Cada arreglo contiene solamente un registro.
+       * FORMATOS ANTERIORES DE RESPUESTA.
+       * SE CONSERVAN POR COMPATIBILIDAD.
        */
+
       ventas: [
         ventaRespuesta,
       ],
@@ -1392,6 +1582,10 @@ export class VentasService {
       ],
     };
   }
+
+  /* =====================================================
+     LISTADO DE VENTAS
+  ===================================================== */
 
   private buscarTodasLasVentas() {
     return this.ventasRepository.find({
@@ -1411,6 +1605,10 @@ export class VentasService {
       },
     });
   }
+
+  /* =====================================================
+     AGRUPAR VENTAS POR VEHÍCULO
+  ===================================================== */
 
   private agruparVentasPorVehiculo(
     ventas: Venta[],
@@ -1447,7 +1645,6 @@ export class VentasService {
             'Sin placa',
 
           cantidad: 0,
-
           total: 0,
         };
       }
@@ -1467,6 +1664,10 @@ export class VentasService {
         b.total - a.total,
     );
   }
+
+  /* =====================================================
+     AGRUPAR VENTAS POR RUTA
+  ===================================================== */
 
   private agruparVentasPorRuta(
     ventas: Venta[],
@@ -1499,9 +1700,7 @@ export class VentasService {
       if (!resultado[clave]) {
         resultado[clave] = {
           ruta: nombre,
-
           cantidad: 0,
-
           total: 0,
         };
       }
@@ -1521,6 +1720,10 @@ export class VentasService {
         b.total - a.total,
     );
   }
+
+  /* =====================================================
+     GENERAR CÓDIGO DE OPERACIÓN
+  ===================================================== */
 
   private generarCodigoOperacion(): string {
     return `VO-${Date.now()}-${randomUUID()
