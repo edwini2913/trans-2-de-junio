@@ -25,6 +25,7 @@ import {
 } from "../rutas/entities/ruta.entity";
 
 import {
+  RolUsuario,
   Usuario,
 } from "../users/entities/usuario.entity";
 
@@ -44,6 +45,10 @@ import {
 import {
   ActualizarEstadoRecojoDto,
 } from "./dto/actualizar-estado-recojo.dto";
+
+import {
+  ActualizarRecojoDto,
+} from "./dto/actualizar-recojo.dto";
 
 import {
   AgregarVehiculoFilaDto,
@@ -94,6 +99,47 @@ export class SalidasRapidasService {
     private readonly dataSource: DataSource,
   ) {}
 
+  /** Valida un chofer antes de asociarlo a un turno. */
+  private async validarChofer(
+    manager: import("typeorm").EntityManager,
+    choferId: string,
+  ): Promise<Usuario> {
+    const chofer = await manager.findOne(Usuario, {
+      where: {
+        id: choferId,
+        rol: RolUsuario.CHOFER,
+        estado: true,
+      },
+    });
+
+    if (!chofer) {
+      throw new BadRequestException(
+        "El chofer no existe, está inactivo o no tiene rol CHOFER.",
+      );
+    }
+
+    return chofer;
+  }
+
+  /** Verifica que quien administra una fila tenga el rol adecuado. */
+  private async validarOperador(
+    manager: import("typeorm").EntityManager,
+    usuarioId: string,
+  ): Promise<Usuario> {
+    const operador = await manager.findOne(Usuario, {
+      where: { id: usuarioId, estado: true },
+    });
+    if (!operador || ![
+      RolUsuario.ADMINISTRADOR,
+      RolUsuario.SECRETARIA,
+    ].includes(operador.rol)) {
+      throw new BadRequestException(
+        "Solo una administradora o secretaria activa puede gestionar salidas.",
+      );
+    }
+    return operador;
+  }
+
   /**
    * Crea una fila con todos los Noah o Hiace
    * que administración considere necesarios.
@@ -121,6 +167,19 @@ export class SalidasRapidasService {
     ) {
       throw new BadRequestException(
         "No se pueden seleccionar vehículos repetidos.",
+      );
+    }
+
+    const asignaciones = dto.asignacionesChoferes ?? [];
+    const idsAsignados = asignaciones.map(a => a.vehiculoId);
+    const choferesAsignados = asignaciones.map(a => a.choferId);
+    if (
+      new Set(idsAsignados).size !== idsAsignados.length ||
+      new Set(choferesAsignados).size !== choferesAsignados.length ||
+      idsAsignados.some(id => !dto.vehiculoIds.includes(id))
+    ) {
+      throw new BadRequestException(
+        "Las asignaciones de choferes están repetidas o contienen vehículos ajenos a la fila.",
       );
     }
 
@@ -153,19 +212,7 @@ export class SalidasRapidasService {
           );
         }
 
-        const operador =
-          await manager.findOne(Usuario, {
-            where: {
-              id: dto.habilitadoPor,
-              estado: true,
-            },
-          });
-
-        if (!operador) {
-          throw new NotFoundException(
-            "El administrador o secretaria no existe.",
-          );
-        }
+        await this.validarOperador(manager, dto.habilitadoPor);
 
         const filaExistente =
           await manager.count(
@@ -224,6 +271,14 @@ export class SalidasRapidasService {
               return vehiculo;
             },
           );
+
+        const mapaChoferes = new Map<string, Usuario>();
+        for (const asignacion of asignaciones) {
+          mapaChoferes.set(
+            asignacion.vehiculoId,
+            await this.validarChofer(manager, asignacion.choferId),
+          );
+        }
 
         for (
           let indice = 0;
@@ -336,6 +391,7 @@ export class SalidasRapidasService {
               {
                 ruta,
                 vehiculo,
+                chofer: mapaChoferes.get(vehiculo.id) ?? null,
                 viaje:
                   viajeGuardado,
                 fecha,
@@ -390,19 +446,7 @@ export class SalidasRapidasService {
 
     await this.dataSource.transaction(
       async (manager) => {
-        const operador =
-          await manager.findOne(Usuario, {
-            where: {
-              id: dto.administradorId,
-              estado: true,
-            },
-          });
-
-        if (!operador) {
-          throw new NotFoundException(
-            "El administrador o secretaria no existe.",
-          );
-        }
+        await this.validarOperador(manager, dto.administradorId);
 
         const ruta =
           await manager.findOne(Ruta, {
@@ -563,12 +607,17 @@ export class SalidasRapidasService {
           asientos,
         );
 
+        const chofer = dto.choferId
+          ? await this.validarChofer(manager, dto.choferId)
+          : null;
+
         const turno =
           manager.create(
             TurnoVehiculo,
             {
               ruta,
               vehiculo,
+              chofer,
               viaje: viajeGuardado,
               fecha,
               posicion,
@@ -880,6 +929,7 @@ export class SalidasRapidasService {
           ruta: true,
           vehiculo: true,
           viaje: true,
+          chofer: true,
         },
         order: {
           posicion: "ASC",
@@ -1009,6 +1059,14 @@ export class SalidasRapidasService {
               turno.vehiculo.tipo,
             capacidad,
           },
+
+          chofer: turno.chofer
+            ? {
+                id: turno.chofer.id,
+                nombre: turno.chofer.nombre,
+                apellido: turno.chofer.apellido,
+              }
+            : null,
 
           viaje: {
             id:
@@ -1359,6 +1417,49 @@ export class SalidasRapidasService {
       );
     }
 
+    // Validar los datos del punto de recojo antes de guardarlos.
+    const referencia = dto.referencia?.trim();
+    const telefono = dto.telefono?.trim();
+
+    if (!referencia || referencia.length < 3) {
+      throw new BadRequestException(
+        "Indica una referencia de al menos 3 caracteres para el recojo.",
+      );
+    }
+
+    if (!telefono) {
+      throw new BadRequestException(
+        "El número de teléfono para el recojo es obligatorio.",
+      );
+    }
+
+    const tieneLatitud = dto.latitud !== null && dto.latitud !== undefined;
+    const tieneLongitud = dto.longitud !== null && dto.longitud !== undefined;
+
+    if (tieneLatitud !== tieneLongitud) {
+      throw new BadRequestException(
+        "Debes enviar ambas coordenadas de ubicación o ninguna.",
+      );
+    }
+
+    if (tieneLatitud && tieneLongitud) {
+      const latitud = Number(dto.latitud);
+      const longitud = Number(dto.longitud);
+
+      if (
+        !Number.isFinite(latitud) ||
+        !Number.isFinite(longitud) ||
+        latitud < -90 ||
+        latitud > 90 ||
+        longitud < -180 ||
+        longitud > 180
+      ) {
+        throw new BadRequestException(
+          "La ubicación GPS proporcionada no es válida.",
+        );
+      }
+    }
+
     const solicitudExistente =
       await this.recojosRepository.findOne({
         where: {
@@ -1385,14 +1486,10 @@ export class SalidasRapidasService {
       this.recojosRepository.create({
         usuario,
         viaje,
-        referencia:
-          dto.referencia.trim(),
-        telefono:
-          dto.telefono.trim(),
-        latitud:
-          dto.latitud ?? null,
-        longitud:
-          dto.longitud ?? null,
+        referencia,
+        telefono,
+        latitud: tieneLatitud ? Number(dto.latitud) : null,
+        longitud: tieneLongitud ? Number(dto.longitud) : null,
         observacion:
           dto.observacion?.trim() ||
           null,
@@ -1417,23 +1514,412 @@ export class SalidasRapidasService {
     };
   }
 
+  /**
+   * Recupera una solicitud del pasajero identificado por JWT.
+   * Prioriza solicitudes PENDIENTE/CONFIRMADA y luego la última histórica.
+   * No expone la entidad Usuario ni datos de otras personas.
+   */
+  async obtenerMiSolicitudRecojo(
+    usuarioId: string,
+    viajeId: string,
+  ) {
+    if (!usuarioId || !viajeId) {
+      throw new BadRequestException(
+        "El usuario y el viaje son obligatorios.",
+      );
+    }
+
+    const filtro = {
+      usuario: { id: usuarioId },
+      viaje: { id: viajeId },
+    };
+
+    const relations = {
+      viaje: {
+        vehiculo: true,
+        ruta: true,
+      },
+    } as const;
+
+    const activa = await this.recojosRepository.findOne({
+      where: {
+        ...filtro,
+        estado: In([
+          EstadoSolicitudRecojo.PENDIENTE,
+          EstadoSolicitudRecojo.CONFIRMADA,
+        ]),
+      },
+      relations,
+      order: { fechaRegistro: "DESC" },
+    });
+
+    const solicitud = activa ??
+      await this.recojosRepository.findOne({
+        where: filtro,
+        relations,
+        order: { fechaRegistro: "DESC" },
+      });
+
+    if (!solicitud) {
+      return null;
+    }
+
+    return {
+      id: solicitud.id,
+      referencia: solicitud.referencia,
+      telefono: solicitud.telefono,
+      observacion: solicitud.observacion,
+      latitud: solicitud.latitud,
+      longitud: solicitud.longitud,
+      estado: solicitud.estado,
+      fechaRegistro: solicitud.fechaRegistro,
+      viaje: {
+        id: solicitud.viaje.id,
+        fecha: solicitud.viaje.fecha,
+        horaSalida: solicitud.viaje.horaSalida,
+        ruta: {
+          origen: solicitud.viaje.ruta.origen,
+          destino: solicitud.viaje.ruta.destino,
+        },
+        vehiculo: {
+          placa: solicitud.viaje.vehiculo.placa,
+          tipo: solicitud.viaje.vehiculo.tipo,
+        },
+      },
+    };
+  }
+
+  /**
+   * Actualiza el punto de recojo del pasajero autenticado.
+   * El usuario se obtiene del JWT en el controlador.
+   * Solo permite cambios mientras la solicitud está PENDIENTE.
+   * No crea solicitudes nuevas ni modifica reservas o tickets.
+   */
+  async actualizarMiRecojo(
+    usuarioId: string,
+    solicitudId: string,
+    dto: ActualizarRecojoDto,
+  ) {
+    if (!usuarioId || !solicitudId) {
+      throw new BadRequestException(
+        "El usuario y la solicitud son obligatorios.",
+      );
+    }
+
+    const tieneLatitud = dto.latitud !== undefined;
+    const tieneLongitud = dto.longitud !== undefined;
+
+    if (tieneLatitud !== tieneLongitud) {
+      throw new BadRequestException(
+        "Debes enviar la latitud y la longitud juntas.",
+      );
+    }
+
+    if (
+      tieneLatitud &&
+      tieneLongitud &&
+      (dto.latitud === null) !== (dto.longitud === null)
+    ) {
+      throw new BadRequestException(
+        "Para quitar el GPS, ambas coordenadas deben ser null.",
+      );
+    }
+
+    if (
+      tieneLatitud &&
+      tieneLongitud &&
+      dto.latitud !== null &&
+      dto.longitud !== null
+    ) {
+      const lat = Number(dto.latitud);
+      const lng = Number(dto.longitud);
+      if (
+        !Number.isFinite(lat) || lat < -90 || lat > 90 ||
+        !Number.isFinite(lng) || lng < -180 || lng > 180
+      ) {
+        throw new BadRequestException(
+          "Las coordenadas GPS no son válidas.",
+        );
+      }
+    }
+
+    if (
+      dto.referencia === undefined &&
+      dto.telefono === undefined &&
+      dto.observacion === undefined &&
+      !tieneLatitud
+    ) {
+      throw new BadRequestException(
+        "Debes indicar al menos un dato para actualizar.",
+      );
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      // Se bloquea el registro durante la actualización para
+      // impedir cambios simultáneos de ubicación/estado.
+      const solicitud = await manager
+        .getRepository(SolicitudRecojo)
+        .createQueryBuilder("solicitud")
+        .setLock("pessimistic_write")
+        .innerJoin("solicitud.usuario", "usuario")
+        .where("solicitud.id = :solicitudId", { solicitudId })
+        .andWhere("usuario.id = :usuarioId", { usuarioId })
+        .getOne();
+
+      if (!solicitud) {
+        throw new NotFoundException(
+          "No existe una solicitud de recojo de tu cuenta con ese identificador.",
+        );
+      }
+
+      if (solicitud.estado !== EstadoSolicitudRecojo.PENDIENTE) {
+        throw new ConflictException(
+          "Solo puedes editar tu lugar de recojo mientras está PENDIENTE.",
+        );
+      }
+
+      if (dto.referencia !== undefined) {
+        const referencia = dto.referencia.trim();
+        if (referencia.length < 5 || referencia.length > 250) {
+          throw new BadRequestException(
+            "La referencia debe contener entre 5 y 250 caracteres.",
+          );
+        }
+        solicitud.referencia = referencia;
+      }
+
+      if (dto.telefono !== undefined) {
+        const telefono = dto.telefono.trim();
+        if (
+          telefono.length < 7 ||
+          telefono.length > 20 ||
+          !/^[0-9+\s()-]+$/.test(telefono)
+        ) {
+          throw new BadRequestException(
+            "El teléfono no es válido.",
+          );
+        }
+        solicitud.telefono = telefono;
+      }
+
+      if (dto.observacion !== undefined) {
+        const observacion = dto.observacion.trim();
+        if (observacion.length > 300) {
+          throw new BadRequestException(
+            "La observación no puede superar los 300 caracteres.",
+          );
+        }
+        solicitud.observacion = observacion || null;
+      }
+
+      if (tieneLatitud && tieneLongitud) {
+        solicitud.latitud = dto.latitud ?? null;
+        solicitud.longitud = dto.longitud ?? null;
+      }
+
+      const guardada = await manager.save(SolicitudRecojo, solicitud);
+
+      return {
+        mensaje: "Tu lugar de recojo fue actualizado correctamente.",
+        solicitud: {
+          id: guardada.id,
+          referencia: guardada.referencia,
+          telefono: guardada.telefono,
+          observacion: guardada.observacion,
+          latitud: guardada.latitud,
+          longitud: guardada.longitud,
+          estado: guardada.estado,
+        },
+      };
+    });
+  }
+
+  /**
+   * Lista recojos para administracion sin enviar la entidad
+   * completa de Usuario (contraseña, documentos o credenciales).
+   * El controlador exige ADMINISTRADOR o SECRETARIA via JWT.
+   */
+
+  /** Lista solamente los turnos asociados al chofer del JWT. */
+  async obtenerMisTurnosRecojoChofer(choferId: string) {
+    const turnos = await this.turnosRepository.find({
+      where: { chofer: { id: choferId }, activo: true },
+      relations: { viaje: true, ruta: true, vehiculo: true },
+      order: { fecha: "DESC", posicion: "ASC" },
+    });
+
+    return turnos.map((turno) => ({
+      id: turno.id,
+      fecha: turno.fecha,
+      posicion: turno.posicion,
+      estado: turno.estado,
+      viaje: {
+        id: turno.viaje.id,
+        fecha: turno.viaje.fecha,
+        horaSalida: turno.viaje.horaSalida,
+        ruta: {
+          origen: turno.ruta.origen,
+          destino: turno.ruta.destino,
+        },
+        vehiculo: {
+          placa: turno.vehiculo.placa,
+          tipo: turno.vehiculo.tipo,
+        },
+      },
+    }));
+  }
+
+  /** Restringe la consulta de pasajeros al chofer realmente asignado al viaje. */
+  async obtenerRecojosDeMiViajeChofer(choferId: string, viajeId: string) {
+    const turno = await this.turnosRepository.findOne({
+      where: {
+        chofer: { id: choferId },
+        viaje: { id: viajeId },
+        activo: true,
+      },
+    });
+
+    if (!turno) {
+      throw new NotFoundException(
+        "No tienes un turno activo asignado a este viaje.",
+      );
+    }
+
+    // Este método ya devuelve una proyección segura, sin campos privados.
+    return this.listarSolicitudesPorViaje(viajeId);
+  }
+
+  /**
+   * Permite al chofer asignado finalizar un recojo previamente confirmado.
+   * Bloquea solo la fila de solicitud; PostgreSQL no permite FOR UPDATE
+   * sobre el lado opcional de un LEFT JOIN.
+   */
+  async actualizarResultadoRecojoChofer(
+    choferId: string,
+    solicitudId: string,
+    estado: EstadoSolicitudRecojo.RECOGIDO | EstadoSolicitudRecojo.NO_ENCONTRADO,
+  ) {
+    if (
+      estado !== EstadoSolicitudRecojo.RECOGIDO &&
+      estado !== EstadoSolicitudRecojo.NO_ENCONTRADO
+    ) {
+      throw new BadRequestException(
+        "El chofer solo puede marcar RECOGIDO o NO_ENCONTRADO.",
+      );
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      // Mantener el bloqueo solo sobre la tabla de solicitudes.
+      const solicitud = await manager
+        .getRepository(SolicitudRecojo)
+        .createQueryBuilder("solicitud")
+        .setLock("pessimistic_write")
+        .where("solicitud.id = :solicitudId", { solicitudId })
+        .getOne();
+
+      if (!solicitud) {
+        throw new NotFoundException("No se encontró la solicitud de recojo.");
+      }
+
+      // Cargar la relación de viaje en una consulta independiente, sin bloqueo.
+      const solicitudConViaje = await manager.findOne(SolicitudRecojo, {
+        where: { id: solicitudId },
+        relations: { viaje: true },
+      });
+
+      if (!solicitudConViaje?.viaje) {
+        throw new NotFoundException(
+          "La solicitud de recojo no tiene un viaje asociado.",
+        );
+      }
+
+      // El conductor debe estar asignado a este turno concreto.
+      const turno = await manager.findOne(TurnoVehiculo, {
+        where: {
+          chofer: { id: choferId },
+          viaje: { id: solicitudConViaje.viaje.id },
+          activo: true,
+        },
+      });
+
+      if (!turno) {
+        throw new NotFoundException(
+          "No tienes un turno activo asignado a este viaje.",
+        );
+      }
+
+      if (solicitud.estado !== EstadoSolicitudRecojo.CONFIRMADA) {
+        throw new ConflictException(
+          "Solo se puede finalizar un recojo en estado CONFIRMADA.",
+        );
+      }
+
+      solicitud.estado = estado;
+      const guardada = await manager.save(SolicitudRecojo, solicitud);
+
+      return {
+        mensaje:
+          estado === EstadoSolicitudRecojo.RECOGIDO
+            ? "Pasajero marcado como recogido correctamente."
+            : "Recojo marcado como no encontrado.",
+        solicitud: {
+          id: guardada.id,
+          estado: guardada.estado,
+        },
+      };
+    });
+  }
+
   async listarSolicitudesPorViaje(
     viajeId: string,
   ) {
-    return this.recojosRepository.find({
-      where: {
-        viaje: {
-          id: viajeId,
-        },
-      },
+    const solicitudes = await this.recojosRepository.find({
+      where: { viaje: { id: viajeId } },
       relations: {
         usuario: true,
-        viaje: true,
+        viaje: {
+          ruta: true,
+          vehiculo: true,
+        },
       },
-      order: {
-        fechaRegistro: "DESC",
-      },
+      order: { fechaRegistro: "DESC" },
     });
+
+    return solicitudes.map((solicitud) => ({
+      id: solicitud.id,
+      referencia: solicitud.referencia,
+      telefono: solicitud.telefono,
+      observacion: solicitud.observacion,
+      latitud: solicitud.latitud,
+      longitud: solicitud.longitud,
+      estado: solicitud.estado,
+      fechaRegistro: solicitud.fechaRegistro,
+      fechaConfirmacion: solicitud.fechaConfirmacion,
+      confirmadoPor: solicitud.confirmadoPor,
+      usuario: {
+        id: solicitud.usuario.id,
+        nombre: solicitud.usuario.nombre,
+        apellido: solicitud.usuario.apellido,
+      },
+      viaje: {
+        id: solicitud.viaje.id,
+        fecha: solicitud.viaje.fecha,
+        horaSalida: solicitud.viaje.horaSalida,
+        estado: solicitud.viaje.estado,
+        ruta: {
+          id: solicitud.viaje.ruta.id,
+          origen: solicitud.viaje.ruta.origen,
+          destino: solicitud.viaje.ruta.destino,
+        },
+        vehiculo: {
+          id: solicitud.viaje.vehiculo.id,
+          placa: solicitud.viaje.vehiculo.placa,
+          marca: solicitud.viaje.vehiculo.marca,
+          modelo: solicitud.viaje.vehiculo.modelo,
+          tipo: solicitud.viaje.vehiculo.tipo,
+        },
+      },
+    }));
   }
 
   async actualizarEstadoRecojo(
@@ -1482,6 +1968,27 @@ export class SalidasRapidasService {
       );
     }
 
+    const transiciones: Record<EstadoSolicitudRecojo, EstadoSolicitudRecojo[]> = {
+      [EstadoSolicitudRecojo.PENDIENTE]: [
+        EstadoSolicitudRecojo.CONFIRMADA,
+        EstadoSolicitudRecojo.CANCELADA,
+      ],
+      [EstadoSolicitudRecojo.CONFIRMADA]: [
+        EstadoSolicitudRecojo.RECOGIDO,
+        EstadoSolicitudRecojo.CANCELADA,
+        EstadoSolicitudRecojo.NO_ENCONTRADO,
+      ],
+      [EstadoSolicitudRecojo.RECOGIDO]: [],
+      [EstadoSolicitudRecojo.CANCELADA]: [],
+      [EstadoSolicitudRecojo.NO_ENCONTRADO]: [],
+    };
+
+    if (!transiciones[solicitud.estado]?.includes(dto.estado)) {
+      throw new BadRequestException(
+        `No se permite cambiar el recojo de ${solicitud.estado} a ${dto.estado}.`,
+      );
+    }
+
     solicitud.estado =
       dto.estado;
 
@@ -1499,8 +2006,11 @@ export class SalidasRapidasService {
     return {
       mensaje:
         "El estado del recojo fue actualizado correctamente.",
-      solicitud:
-        guardada,
+      solicitud: {
+        id: guardada.id,
+        estado: guardada.estado,
+        fechaConfirmacion: guardada.fechaConfirmacion,
+      },
     };
   }
 

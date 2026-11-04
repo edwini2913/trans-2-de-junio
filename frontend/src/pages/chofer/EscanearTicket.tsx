@@ -1,6 +1,6 @@
-
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -11,6 +11,12 @@ import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   Armchair,
+  Bell,
+  RefreshCw,
+  Navigation,
+  Loader2,
+  Phone,
+  ChevronDown,
   BusFront,
   CalendarDays,
   Camera,
@@ -24,6 +30,19 @@ import {
 } from "lucide-react";
 
 import LectorQr from "../../components/qr/LectorQr";
+
+import {
+  obtenerMisTurnosRecojoChofer,
+  obtenerMisRecojosChofer,
+  marcarResultadoRecojoChofer,
+  obtenerEnlaceMapaRecojo,
+} from "../../services/salidas-rapidas.service";
+
+import type {
+  SolicitudRecojo,
+  TurnoRecojoChofer,
+} from "../../services/salidas-rapidas.service";
+
 
 import {
   obtenerTicketPorToken,
@@ -99,6 +118,8 @@ type TicketEscaneado = {
 };
 
 function EscanearTicket() {
+  const [mostrarRecojos, setMostrarRecojos] = useState(false);
+
   const procesandoRef = useRef(false);
 
   const [estado, setEstado] =
@@ -111,14 +132,11 @@ function EscanearTicket() {
   const [ticket, setTicket] =
     useState<TicketEscaneado | null>(null);
 
-  const [tokenActual, setTokenActual] =
-    useState("");
+  const [tokenActual, setTokenActual] = useState("");
 
-  const [procesando, setProcesando] =
-    useState(false);
+  const [procesando, setProcesando] = useState(false);
 
-  const [scannerActivo, setScannerActivo] =
-    useState(false);
+  const [scannerActivo, setScannerActivo] = useState(false);
 
   /* ========================================
      LEER Y COMPROBAR EL CÓDIGO QR
@@ -185,8 +203,7 @@ function EscanearTicket() {
         }
 
         if (
-          ticketEncontrado.reserva?.estado !==
-          "CONFIRMADA"
+          ticketEncontrado.reserva?.estado !== "CONFIRMADA"
         ) {
           setEstado("ERROR");
           setMensaje(
@@ -225,6 +242,7 @@ function EscanearTicket() {
     setMensaje(
       "Apunta la cámara hacia el código QR del ticket.",
     );
+
     procesandoRef.current = false;
     setScannerActivo(true);
   };
@@ -334,8 +352,7 @@ function EscanearTicket() {
     estado === "UTILIZADO" ||
     estado === "ERROR";
 
-  const mostrarResultado =
-    estado !== "INICIAL";
+  const mostrarResultado = estado !== "INICIAL";
 
   const tituloResultado =
     estado === "AUTORIZADO"
@@ -354,12 +371,10 @@ function EscanearTicket() {
 
   return (
     <div className="min-h-screen bg-[#f3f8f5] pb-8 text-slate-900">
-
       {/* ENCABEZADO */}
 
       <header className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-700 text-white shadow-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-5">
-
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 sm:h-12 sm:w-12">
               <QrCode size={23} />
@@ -382,6 +397,7 @@ function EscanearTicket() {
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 transition hover:bg-white/25 sm:h-auto sm:w-auto sm:gap-2 sm:bg-white sm:px-4 sm:py-2.5 sm:font-bold sm:text-emerald-900"
           >
             <ArrowLeft size={19} />
+
             <span className="hidden sm:inline">
               Volver al panel
             </span>
@@ -392,9 +408,51 @@ function EscanearTicket() {
       {/* CONTENIDO */}
 
       <main className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-7">
+        {/* ACCESO A RECOJOS: CONEXIÓN PENDIENTE */}
+
+        <section className="mb-5 overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+          <button
+            type="button"
+            aria-expanded={mostrarRecojos}
+            aria-controls="panel-recojos-chofer"
+            onClick={() =>
+              setMostrarRecojos((actual) => !actual)
+            }
+            className="flex min-h-16 w-full items-center gap-3 bg-emerald-700 px-4 py-4 text-left text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:px-5"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
+              <Bell size={23} aria-hidden="true" />
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-extrabold">
+                Pasajeros por recoger
+              </span>
+
+              <span className="mt-0.5 block text-xs text-emerald-50 sm:text-sm">
+                Solicitudes y lugares de recojo
+              </span>
+            </span>
+
+            <ChevronDown
+              size={22}
+              aria-hidden="true"
+              className={`shrink-0 transition-transform ${
+                mostrarRecojos ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          <div
+            id="panel-recojos-chofer"
+            hidden={!mostrarRecojos}
+            className="p-4 sm:p-5"
+          >
+            {mostrarRecojos && <MisRecojosChofer />}
+          </div>
+        </section>
 
         <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-
           {/* ESCÁNER */}
           {/* Se oculta en móvil después de leer un QR */}
 
@@ -414,6 +472,7 @@ function EscanearTicket() {
                 <h2 className="text-base font-extrabold">
                   Escanear código QR
                 </h2>
+
                 <p className="text-xs text-slate-500">
                   Apunta la cámara al ticket
                 </p>
@@ -473,7 +532,6 @@ function EscanearTicket() {
                   : "border-slate-200"
             }`}
           >
-
             {/* ESTADO COMPACTO */}
 
             <div
@@ -486,7 +544,6 @@ function EscanearTicket() {
               }`}
             >
               <div className="flex items-start gap-3">
-
                 <div
                   className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ${
                     resultadoPositivo
@@ -531,7 +588,6 @@ function EscanearTicket() {
 
             {ticket && (
               <div className="space-y-4 p-4 sm:p-6">
-
                 {/* BLOCKCHAIN */}
 
                 <div
@@ -575,7 +631,6 @@ function EscanearTicket() {
                 {/* PASAJERO Y NÚMERO DEL TICKET */}
 
                 <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
-
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       Pasajero
@@ -667,7 +722,6 @@ function EscanearTicket() {
 
                 {estado === "COMPROBADO" && (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-
                     <p className="text-xs leading-relaxed text-emerald-900">
                       Comprueba los datos antes de autorizar.
                       Esta acción marcará el ticket como{" "}
@@ -856,6 +910,7 @@ function Dato({
     <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
       <div className="mb-1 flex items-center gap-1 text-emerald-700">
         {icono}
+
         <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
           {titulo}
         </span>
@@ -894,3 +949,204 @@ function formatearHora(hora?: string): string {
 }
 
 export default EscanearTicket;
+
+
+/**
+ * Recojos visibles solamente para el chofer autenticado.
+ * El backend verifica la asignación por TurnoVehiculo.chofer.
+ * Esta sección es independiente de los estados del lector QR.
+ */
+function MisRecojosChofer() {
+  const [turnos, setTurnos] = useState<TurnoRecojoChofer[]>([]);
+  const [viajeId, setViajeId] = useState("");
+  const [solicitudes, setSolicitudes] = useState<SolicitudRecojo[]>([]);
+  const [cargandoTurnos, setCargandoTurnos] = useState(true);
+  const [cargandoRecojos, setCargandoRecojos] = useState(false);
+  const [actualizando, setActualizando] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [mensaje, setMensaje] = useState("");
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    let vigente = true;
+    setCargandoTurnos(true);
+    setError("");
+    void obtenerMisTurnosRecojoChofer()
+      .then((lista) => {
+        if (!vigente) return;
+        setTurnos(lista);
+        setViajeId((anterior) =>
+          lista.some((t) => t.viaje.id === anterior)
+            ? anterior
+            : (lista[0]?.viaje.id ?? ""),
+        );
+      })
+      .catch((fallo: unknown) => {
+        if (vigente) setError(obtenerMensajeError(fallo));
+      })
+      .finally(() => {
+        if (vigente) setCargandoTurnos(false);
+      });
+    return () => { vigente = false; };
+  }, [revision]);
+
+  useEffect(() => {
+    if (!viajeId) {
+      setSolicitudes([]);
+      return;
+    }
+    let vigente = true;
+    setCargandoRecojos(true);
+    setError("");
+    void obtenerMisRecojosChofer(viajeId)
+      .then((lista) => {
+        if (vigente) setSolicitudes(lista);
+      })
+      .catch((fallo: unknown) => {
+        if (vigente) {
+          setSolicitudes([]);
+          setError(obtenerMensajeError(fallo));
+        }
+      })
+      .finally(() => {
+        if (vigente) setCargandoRecojos(false);
+      });
+    return () => { vigente = false; };
+  }, [viajeId, revision]);
+
+  const cambiarEstado = async (
+    solicitud: SolicitudRecojo,
+    estadoNuevo: "RECOGIDO" | "NO_ENCONTRADO",
+  ) => {
+    if (actualizando) return;
+    const accion = estadoNuevo === "RECOGIDO"
+      ? "marcar como recogido"
+      : "marcar como no encontrado";
+    if (!window.confirm(
+      `¿Deseas ${accion} a ${solicitud.usuario.nombre} ${solicitud.usuario.apellido}?`,
+    )) return;
+
+    setActualizando(solicitud.id);
+    setError("");
+    setMensaje("");
+    try {
+      const respuesta = await marcarResultadoRecojoChofer(
+        solicitud.id, estadoNuevo,
+      );
+      setMensaje(respuesta.mensaje);
+      setRevision((anterior) => anterior + 1);
+    } catch (fallo) {
+      setError(obtenerMensajeError(fallo));
+    } finally {
+      setActualizando(null);
+    }
+  };
+
+  const seleccionado = turnos.find((turno) => turno.viaje.id === viajeId);
+  const pendientes = solicitudes.filter((s) => s.estado === "PENDIENTE").length;
+  const confirmados = solicitudes.filter((s) => s.estado === "CONFIRMADA").length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-slate-800">Mis viajes asignados</p>
+        <button type="button" onClick={() => setRevision((v) => v + 1)}
+          disabled={cargandoTurnos || cargandoRecojos || Boolean(actualizando)}
+          className="flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">
+          <RefreshCw size={16} /> Actualizar
+        </button>
+      </div>
+
+      {cargandoTurnos ? (
+        <p className="flex items-center gap-2 text-sm text-slate-600">
+          <Loader2 size={17} className="animate-spin" /> Consultando turnos...
+        </p>
+      ) : turnos.length === 0 ? (
+        <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+          No tienes vehículos asignados en una fila activa.
+        </p>
+      ) : (
+        <>
+          <label className="block text-sm font-semibold text-slate-700">
+            Selecciona tu vehículo y viaje
+            <select value={viajeId} onChange={(e) => setViajeId(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
+              {turnos.map((turno) => (
+                <option key={turno.id} value={turno.viaje.id}>
+                  {turno.viaje.vehiculo.tipo} {turno.viaje.vehiculo.placa} · {turno.viaje.fecha} · {turno.viaje.horaSalida.slice(0, 5)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {seleccionado && (
+            <div className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-900">
+              {seleccionado.viaje.ruta.origen} → {seleccionado.viaje.ruta.destino} · Estado: {seleccionado.estado}
+            </div>
+          )}
+          <p className="text-xs font-semibold text-slate-600">
+            {pendientes} pendientes · {confirmados} confirmados · {solicitudes.length} en total
+          </p>
+
+          {cargandoRecojos ? (
+            <p className="flex items-center gap-2 py-4 text-sm text-slate-600">
+              <Loader2 size={18} className="animate-spin" /> Cargando pasajeros...
+            </p>
+          ) : solicitudes.length === 0 ? (
+            <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+              No existen solicitudes de recojo para este viaje.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {solicitudes.map((solicitud) => {
+                const mapa = obtenerEnlaceMapaRecojo(solicitud, "RUTA");
+                return (
+                  <article key={solicitud.id}
+                    className="min-w-0 space-y-3 rounded-2xl border border-emerald-100 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="break-words font-black text-slate-900">
+                        {solicitud.usuario.nombre} {solicitud.usuario.apellido}
+                      </p>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+                        {solicitud.estado.replaceAll("_", " ")}
+                      </span>
+                    </div>
+                    <p className="break-words text-sm text-slate-700"><MapPin size={15} className="mr-1 inline" />{solicitud.referencia}</p>
+                    <p className="text-sm text-slate-600"><Phone size={15} className="mr-1 inline" />{solicitud.telefono}</p>
+                    {solicitud.observacion && (
+                      <p className="break-words text-xs text-slate-600">{solicitud.observacion}</p>
+                    )}
+                    {mapa ? (
+                      <a href={mapa} target="_blank" rel="noopener noreferrer"
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-emerald-700">
+                        <Navigation size={17} /> Ir con Google Maps
+                      </a>
+                    ) : (
+                      <p className="rounded-xl bg-amber-50 p-2 text-xs text-amber-800">Sin ubicación GPS; usar referencia escrita.</p>
+                    )}
+                    {solicitud.estado === "CONFIRMADA" && (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <button type="button" disabled={Boolean(actualizando)}
+                          onClick={() => void cambiarEstado(solicitud, "RECOGIDO")}
+                          className="min-h-11 rounded-xl bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
+                          Recogido
+                        </button>
+                        <button type="button" disabled={Boolean(actualizando)}
+                          onClick={() => void cambiarEstado(solicitud, "NO_ENCONTRADO")}
+                          className="min-h-11 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 disabled:opacity-50">
+                          No encontrado
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {mensaje && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{mensaje}</p>}
+    </div>
+  );
+}

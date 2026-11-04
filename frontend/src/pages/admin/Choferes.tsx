@@ -7,6 +7,7 @@ import {
 
 import {
   BadgeCheck,
+  BusFront,
   Eye,
   EyeOff,
   IdCard,
@@ -18,6 +19,8 @@ import {
   UserRound,
 } from "lucide-react";
 
+import API from "../../services/auth.service";
+
 import {
   actualizarPermisoEscaneo,
   crearChofer,
@@ -27,6 +30,34 @@ import {
 } from "../../services/choferes.service";
 
 type FormularioChofer = CrearChoferDatos;
+type TipoVehiculo = "NOAH" | "HIACE" | "FLOTA";
+type ModoVehiculo = "NUEVO" | "EXISTENTE" | "NINGUNO";
+
+type VehiculoConChofer = {
+  id: string;
+  placa: string;
+  marca: string;
+  modelo: string;
+  tipo: TipoVehiculo;
+  numeroFlota: string | null;
+  capacidad: number;
+  choferHabitual?: { id: string; nombre: string; apellido: string } | null;
+};
+
+const vehiculoInicial = {
+  placa: "",
+  marca: "",
+  modelo: "",
+  numeroFlota: "",
+  tipo: "NOAH" as TipoVehiculo,
+};
+
+const capacidadPorTipo: Record<TipoVehiculo, number> = {
+  NOAH: 7,
+  HIACE: 10,
+  FLOTA: 40,
+};
+
 
 const formularioInicial: FormularioChofer = {
   nombre: "",
@@ -39,6 +70,11 @@ const formularioInicial: FormularioChofer = {
 };
 
 function mensajeDeError(error: unknown): string {
+  if (error && typeof error === "object" && "response" in error) {
+    const datos = (error as { response?: { data?: { message?: string | string[] } } }).response?.data;
+    if (Array.isArray(datos?.message)) return datos.message.join(". ");
+    if (typeof datos?.message === "string") return datos.message;
+  }
   if (
     typeof error === "object" &&
     error !== null &&
@@ -69,6 +105,14 @@ export default function Choferes() {
     useState<FormularioChofer>(formularioInicial);
 
   const [choferes, setChoferes] = useState<Chofer[]>([]);
+  const [vehiculos, setVehiculos] = useState<VehiculoConChofer[]>([]);
+  const [modoVehiculo, setModoVehiculo] = useState<ModoVehiculo>("NUEVO");
+  const [vehiculo, setVehiculo] = useState(vehiculoInicial);
+  const [vehiculoExistenteId, setVehiculoExistenteId] = useState("");
+  const [asignacionesEnLista, setAsignacionesEnLista] = useState<Record<string, string>>({});
+  const [vinculandoChoferId, setVinculandoChoferId] = useState<string | null>(null);
+  // Evita crear dos cuentas si la segunda solicitud (vehículo) falla.
+  const [choferCreadoPendiente, setChoferCreadoPendiente] = useState<Chofer | null>(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [actualizandoId, setActualizandoId] =
@@ -90,13 +134,29 @@ export default function Choferes() {
     return formulario.password.trim() || "Chofer2026*";
   }, [formulario.password]);
 
+  async function cargarVehiculos() {
+    const respuesta = await API.get<VehiculoConChofer[]>("/vehiculos");
+    if (!Array.isArray(respuesta.data)) {
+      throw new Error("No se pudo obtener la lista de vehículos.");
+    }
+    setVehiculos(respuesta.data);
+  }
+
   async function cargarChoferes() {
     try {
       setCargando(true);
       setMensajeError("");
 
-      const data = await obtenerChoferes();
+      const [data, respuestaVehiculos] = await Promise.all([
+        obtenerChoferes(),
+        API.get<VehiculoConChofer[]>("/vehiculos"),
+      ]);
       setChoferes(data);
+      setVehiculos(
+        Array.isArray(respuestaVehiculos.data)
+          ? respuestaVehiculos.data
+          : [],
+      );
     } catch (error) {
       setMensajeError(mensajeDeError(error));
     } finally {
@@ -125,70 +185,124 @@ export default function Choferes() {
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
-
     if (guardando) return;
-
     setMensajeError("");
     setMensajeExito("");
 
-    const datos = {
+    const datos: CrearChoferDatos = {
       ...formulario,
       nombre: formulario.nombre.trim(),
       apellido: formulario.apellido.trim(),
       ci: formulario.ci.trim(),
       telefono: formulario.telefono.trim(),
       email: formulario.email.trim().toLowerCase(),
-      password: formulario.password,
     };
 
-    if (
-      !datos.nombre ||
-      !datos.apellido ||
-      !datos.ci ||
-      !datos.telefono ||
-      !datos.email ||
-      !datos.password
-    ) {
-      setMensajeError(
-        "Completa todos los campos para registrar al chofer.",
-      );
+    // Si ya se creó el chofer, no se vuelve a crear al reintentar.
+    if (!choferCreadoPendiente) {
+      if (!datos.nombre || !datos.apellido || !datos.ci ||
+          !datos.telefono || !datos.email || !datos.password) {
+        setMensajeError("Completa todos los datos del chofer.");
+        return;
+      }
+      if (!validarEmail(datos.email)) {
+        setMensajeError("Ingresa un correo electrónico válido.");
+        return;
+      }
+      if (datos.password.length < 8) {
+        setMensajeError("La contraseña debe tener al menos 8 caracteres.");
+        return;
+      }
+    }
+
+    if (modoVehiculo === "NUEVO") {
+      if (!vehiculo.placa.trim() || !vehiculo.marca.trim() || !vehiculo.modelo.trim()) {
+        setMensajeError("Completa la placa, marca y modelo del vehículo.");
+        return;
+      }
+    } else if (modoVehiculo === "EXISTENTE" && !vehiculoExistenteId) {
+      setMensajeError("Selecciona el vehículo existente que vas a vincular.");
       return;
     }
 
-    if (!validarEmail(datos.email)) {
-      setMensajeError(
-        "Ingresa un correo electrónico válido para el chofer.",
-      );
-      return;
-    }
-
-    if (datos.password.length < 8) {
-      setMensajeError(
-        "La contraseña debe tener al menos 8 caracteres.",
-      );
-      return;
-    }
-
+    let cuentaCreadaEnEsteIntento = false;
     try {
       setGuardando(true);
+      let choferNuevo = choferCreadoPendiente;
 
-      const respuesta = await crearChofer(datos);
+      if (!choferNuevo) {
+        const respuesta = await crearChofer(datos);
+        choferNuevo = respuesta.usuario;
+        setChoferCreadoPendiente(choferNuevo);
+        cuentaCreadaEnEsteIntento = true;
+        setChoferes((previo) => [choferNuevo!, ...previo]);
+      }
 
-      setChoferes((previo) => [
-        respuesta.usuario,
-        ...previo,
-      ]);
+      if (modoVehiculo === "NUEVO") {
+        await API.post("/vehiculos", {
+          placa: vehiculo.placa.trim().toUpperCase(),
+          marca: vehiculo.marca.trim(),
+          modelo: vehiculo.modelo.trim(),
+          tipo: vehiculo.tipo,
+          numeroFlota: vehiculo.numeroFlota.trim() || null,
+          choferId: choferNuevo.id,
+          estado: true,
+        });
+      } else if (modoVehiculo === "EXISTENTE") {
+        await API.patch(`/vehiculos/${vehiculoExistenteId}`, {
+          choferId: choferNuevo.id,
+        });
+      }
 
       setMensajeExito(
-        "Chofer registrado correctamente. Ya puede iniciar sesión con los datos generados.",
+        modoVehiculo === "NINGUNO"
+          ? "Chofer registrado correctamente. Puedes asignarle vehículo después."
+          : `Chofer ${choferNuevo.nombre} ${choferNuevo.apellido} registrado y vehículo vinculado correctamente.`,
       );
-
       setFormulario(formularioInicial);
+      setVehiculo(vehiculoInicial);
+      setVehiculoExistenteId("");
+      setChoferCreadoPendiente(null);
       setMostrarPassword(false);
+      await cargarVehiculos().catch(() => {
+        // El guardado ya fue confirmado: un fallo del refresco no lo revierte.
+      });
+    } catch (error) {
+      setMensajeError(
+        (choferCreadoPendiente || cuentaCreadaEnEsteIntento)
+          ? `La cuenta ya existe; falta vincular el vehículo. Corrige el dato y usa «Reintentar vínculo». ${mensajeDeError(error)}`
+          : mensajeDeError(error),
+      );
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function vincularChoferExistente(chofer: Chofer) {
+    const vehiculoId = asignacionesEnLista[chofer.id];
+    if (!vehiculoId) {
+      setMensajeError("Selecciona una placa para vincular al chofer.");
+      return;
+    }
+    const elegido = vehiculos.find((v) => v.id === vehiculoId);
+    if (!elegido) return;
+    if (elegido.choferHabitual?.id && elegido.choferHabitual.id !== chofer.id) {
+      const confirmado = window.confirm(
+        `La placa ${elegido.placa} ya está asignada a ${elegido.choferHabitual.nombre} ${elegido.choferHabitual.apellido}. ¿Deseas cambiar su chofer habitual?`,
+      );
+      if (!confirmado) return;
+    }
+    try {
+      setVinculandoChoferId(chofer.id);
+      setMensajeError("");
+      setMensajeExito("");
+      await API.patch(`/vehiculos/${vehiculoId}`, { choferId: chofer.id });
+      setMensajeExito(`Se vinculó ${elegido.placa} con ${chofer.nombre} ${chofer.apellido}.`);
+      await cargarVehiculos();
     } catch (error) {
       setMensajeError(mensajeDeError(error));
     } finally {
-      setGuardando(false);
+      setVinculandoChoferId(null);
     }
   }
 
@@ -446,6 +560,108 @@ export default function Choferes() {
               </div>
             </div>
 
+            {/* VEHÍCULO DEL CHOFER */}
+            <div className="space-y-4 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                  <BusFront size={23} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-800">Vehículo del chofer</h3>
+                  <p className="text-sm text-slate-600">Registra una placa nueva o vincula una ya existente.</p>
+                </div>
+              </div>
+
+              {choferCreadoPendiente && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                  La cuenta de {choferCreadoPendiente.nombre} ya fue creada. Al guardar de nuevo solo se vinculará su vehículo; no se duplicará la cuenta.
+                </p>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {([
+                  ["NUEVO", "Vehículo nuevo"],
+                  ["EXISTENTE", "Ya registrado"],
+                  ["NINGUNO", "Por ahora, ninguno"],
+                ] as const).map(([valor, texto]) => (
+                  <label key={valor} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm font-bold ${modoVehiculo === valor ? "border-emerald-600 bg-white text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                    <input type="radio" name="modoVehiculo" checked={modoVehiculo === valor}
+                      onChange={() => setModoVehiculo(valor)} />
+                    {texto}
+                  </label>
+                ))}
+              </div>
+
+              {modoVehiculo === "NUEVO" && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block text-sm font-bold text-slate-700">
+                    Placa del vehículo
+                    <input required maxLength={20} value={vehiculo.placa}
+                      onChange={(e) => setVehiculo((v) => ({ ...v, placa: e.target.value.toUpperCase() }))}
+                      placeholder="Ej.: 1234-ABC"
+                      className="mt-2 h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 outline-none focus:border-emerald-600" />
+                  </label>
+                  <label className="block text-sm font-bold text-slate-700">
+                    Tipo de vehículo
+                    <select value={vehiculo.tipo}
+                      onChange={(e) => setVehiculo((v) => ({ ...v, tipo: e.target.value as TipoVehiculo }))}
+                      className="mt-2 h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 outline-none focus:border-emerald-600">
+                      <option value="NOAH">Noah — 7 asientos</option>
+                      <option value="HIACE">Hiace — 10 asientos</option>
+                      <option value="FLOTA">Flota — 40 asientos</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm font-bold text-slate-700">
+                    Marca
+                    <input required maxLength={100} value={vehiculo.marca}
+                      onChange={(e) => setVehiculo((v) => ({ ...v, marca: e.target.value }))}
+                      placeholder="Ej.: Toyota"
+                      className="mt-2 h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 outline-none focus:border-emerald-600" />
+                  </label>
+                  <label className="block text-sm font-bold text-slate-700">
+                    Modelo
+                    <input required maxLength={100} value={vehiculo.modelo}
+                      onChange={(e) => setVehiculo((v) => ({ ...v, modelo: e.target.value }))}
+                      placeholder="Ej.: Noah"
+                      className="mt-2 h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 outline-none focus:border-emerald-600" />
+                  </label>
+                  <label className="block text-sm font-bold text-slate-700">
+                    Número interno (opcional)
+                    <input maxLength={20} value={vehiculo.numeroFlota}
+                      onChange={(e) => setVehiculo((v) => ({ ...v, numeroFlota: e.target.value }))}
+                      placeholder="Ej.: 211"
+                      className="mt-2 h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 outline-none focus:border-emerald-600" />
+                  </label>
+                  <div className="flex items-center rounded-2xl border border-emerald-200 bg-white px-4 text-sm font-black text-emerald-800">
+                    Capacidad automática: {capacidadPorTipo[vehiculo.tipo]} asientos
+                  </div>
+                </div>
+              )}
+
+              {modoVehiculo === "EXISTENTE" && (
+                <label className="block text-sm font-bold text-slate-700">
+                  Seleccionar vehículo registrado
+                  <select required value={vehiculoExistenteId}
+                    onChange={(e) => setVehiculoExistenteId(e.target.value)}
+                    className="mt-2 h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 outline-none focus:border-emerald-600">
+                    <option value="">Elige la placa...</option>
+                    {vehiculos.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.placa} · {v.tipo}{v.choferHabitual ? ` · Actual: ${v.choferHabitual.nombre} ${v.choferHabitual.apellido}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-2 block text-xs font-normal text-slate-500">
+                    Si ese vehículo tiene otro chofer habitual, la asignación se reemplazará.
+                  </span>
+                </label>
+              )}
+
+              {modoVehiculo === "NINGUNO" && (
+                <p className="text-sm text-slate-600">Se creará la cuenta y podrás vincular la placa después.</p>
+              )}
+            </div>
+
             {/* PERMISO */}
             <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
               <input
@@ -479,8 +695,10 @@ export default function Choferes() {
               className="flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-700 px-5 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {guardando
-                ? "Creando cuenta de chofer..."
-                : "Crear cuenta de chofer"}
+                ? "Guardando chofer y vehículo..."
+                : choferCreadoPendiente
+                  ? "Reintentar vínculo del vehículo"
+                  : "Registrar chofer y vehículo"}
             </button>
           </form>
         </div>
@@ -637,6 +855,10 @@ export default function Choferes() {
                         <span className="font-bold">Estado:</span>{" "}
                         {chofer.estado ? "Activo" : "Inactivo"}
                       </p>
+                      <p className="md:col-span-2">
+                        <span className="font-bold">Vehículo habitual:</span>{" "}
+                        {vehiculos.filter((v) => v.choferHabitual?.id === chofer.id).map((v) => `${v.tipo} · ${v.placa}`).join(", ") || "Sin vehículo asignado"}
+                      </p>
                     </div>
 
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -693,6 +915,24 @@ export default function Choferes() {
                       </button>
                     )}
                   </div>
+                </div>
+                <div className="mt-4 flex flex-col gap-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 sm:flex-row sm:items-end">
+                  <label className="flex-1 text-sm font-bold text-slate-700">
+                    Asignar una placa registrada a este chofer
+                    <select value={asignacionesEnLista[chofer.id] || ""}
+                      onChange={(e) => setAsignacionesEnLista((previo) => ({ ...previo, [chofer.id]: e.target.value }))}
+                      className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-emerald-600">
+                      <option value="">Seleccionar vehículo...</option>
+                      {vehiculos.map((v) => (
+                        <option key={v.id} value={v.id}>{v.placa} · {v.tipo}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" disabled={vinculandoChoferId === chofer.id || !asignacionesEnLista[chofer.id] || !chofer.estado}
+                    onClick={() => void vincularChoferExistente(chofer)}
+                    className="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">
+                    {vinculandoChoferId === chofer.id ? "Vinculando..." : "Guardar vínculo"}
+                  </button>
                 </div>
               </div>
             ))}

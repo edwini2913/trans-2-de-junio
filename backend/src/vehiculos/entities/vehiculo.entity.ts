@@ -1,15 +1,24 @@
+
 import {
   Check,
   Column,
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
 
-import { Viaje } from "../../viajes/entities/viaje.entity";
+import {
+  Usuario,
+} from "../../users/entities/usuario.entity";
+
+import {
+  Viaje,
+} from "../../viajes/entities/viaje.entity";
 
 export enum TipoVehiculo {
   FLOTA = "FLOTA",
@@ -33,6 +42,10 @@ export enum TipoVehiculo {
 )
 @Index("IDX_VEHICULOS_ESTADO", ["estado"])
 @Index("IDX_VEHICULOS_TIPO", ["tipo"])
+@Index(
+  "IDX_VEHICULOS_CHOFER_HABITUAL",
+  ["choferHabitual"],
+)
 @Check(
   "CHK_VEHICULOS_CAPACIDAD_POSITIVA",
   '"capacidad" > 0',
@@ -42,14 +55,8 @@ export class Vehiculo {
   id!: string;
 
   /**
-   * Número interno utilizado para identificar
-   * los vehículos dentro del sindicato.
-   *
-   * En las flotas puede utilizarse el número:
-   * 211, 212, 305, etc.
-   *
-   * Para Noah y Hiace puede dejarse vacío
-   * y utilizarse principalmente la placa.
+   * Número interno del vehículo.
+   * Para Noah y Hiace puede quedar vacío.
    */
   @Column({
     type: "varchar",
@@ -60,6 +67,9 @@ export class Vehiculo {
   })
   numeroFlota!: string | null;
 
+  /**
+   * Placa única del vehículo.
+   */
   @Column({
     type: "varchar",
     length: 20,
@@ -83,11 +93,10 @@ export class Vehiculo {
   modelo!: string;
 
   /**
-   * Tipos disponibles:
-   *
-   * FLOTA: vehículo grande de 40 pasajeros.
-   * NOAH: vehículo rápido de 7 pasajeros.
-   * HIACE: vehículo rápido de 10 pasajeros.
+   * Tipos de vehículos:
+   * FLOTA = 40 pasajeros
+   * NOAH = 7 pasajeros
+   * HIACE = 10 pasajeros
    */
   @Column({
     type: "varchar",
@@ -98,11 +107,7 @@ export class Vehiculo {
   tipo!: TipoVehiculo;
 
   /**
-   * La capacidad será validada en el servicio:
-   *
-   * FLOTA = 40
-   * NOAH = 7
-   * HIACE = 10
+   * Capacidad calculada por VehiculosService.
    */
   @Column({
     type: "integer",
@@ -118,6 +123,37 @@ export class Vehiculo {
   })
   estado!: boolean;
 
+  /**
+   * CHOFER HABITUAL
+   *
+   * Relación opcional con un usuario CHOFER.
+   *
+   * Permite identificar automáticamente
+   * el conductor habitual al buscar la placa.
+   *
+   * Si el chofer se elimina, la asignación
+   * queda vacía, sin borrar el vehículo.
+   *
+   * El conductor efectivo de cada salida
+   * continúa almacenándose por separado
+   * en TurnoVehiculo.
+   */
+  @ManyToOne(
+    () => Usuario,
+    {
+      nullable: true,
+      eager: false,
+      onDelete: "SET NULL",
+    },
+  )
+  @JoinColumn({
+    name: "chofer_habitual_id",
+  })
+  choferHabitual!: Usuario | null;
+
+  /**
+   * Viajes asociados al vehículo.
+   */
   @OneToMany(
     () => Viaje,
     (viaje) => viaje.vehiculo,

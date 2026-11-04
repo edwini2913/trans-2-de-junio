@@ -1,3 +1,4 @@
+
 import {
   Type,
 } from "class-transformer";
@@ -9,6 +10,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -20,29 +22,23 @@ import {
 
 export class CreateVehiculoDto {
   @IsString({
-    message:
-      "La placa debe ser texto.",
+    message: "La placa debe ser texto.",
   })
   @IsNotEmpty({
-    message:
-      "La placa es obligatoria.",
+    message: "La placa es obligatoria.",
   })
   @MaxLength(20, {
-    message:
-      "La placa no puede superar los 20 caracteres.",
+    message: "La placa no puede superar los 20 caracteres.",
   })
   placa!: string;
 
   /**
-   * Número interno utilizado principalmente
-   * por las flotas.
-   *
-   * Para Noah y Hiace puede quedar vacío.
+   * Número interno del vehículo.
+   * Puede quedar vacío para Noah y Hiace.
    */
   @IsOptional()
   @IsString({
-    message:
-      "El número interno debe ser texto.",
+    message: "El número interno debe ser texto.",
   })
   @MaxLength(20, {
     message:
@@ -51,12 +47,10 @@ export class CreateVehiculoDto {
   numeroFlota?: string | null;
 
   @IsString({
-    message:
-      "La marca debe ser texto.",
+    message: "La marca debe ser texto.",
   })
   @IsNotEmpty({
-    message:
-      "La marca es obligatoria.",
+    message: "La marca es obligatoria.",
   })
   @MaxLength(100, {
     message:
@@ -65,12 +59,10 @@ export class CreateVehiculoDto {
   marca!: string;
 
   @IsString({
-    message:
-      "El modelo debe ser texto.",
+    message: "El modelo debe ser texto.",
   })
   @IsNotEmpty({
-    message:
-      "El modelo es obligatorio.",
+    message: "El modelo es obligatorio.",
   })
   @MaxLength(100, {
     message:
@@ -78,22 +70,32 @@ export class CreateVehiculoDto {
   })
   modelo!: string;
 
-  @IsEnum(
-    TipoVehiculo,
-    {
-      message:
-        "El tipo debe ser FLOTA, NOAH o HIACE.",
-    },
-  )
+  @IsEnum(TipoVehiculo, {
+    message:
+      "El tipo debe ser FLOTA, NOAH o HIACE.",
+  })
   tipo!: TipoVehiculo;
 
   /**
-   * Se mantiene opcional para conservar
-   * compatibilidad con formularios antiguos.
+   * Chofer habitual asociado al vehículo.
    *
-   * VehiculosService ignorará este valor y
-   * asignará automáticamente:
+   * Es opcional para conservar compatibilidad
+   * con los vehículos registrados anteriormente.
    *
+   * El servicio comprobará que:
+   * - El usuario exista.
+   * - Tenga rol CHOFER.
+   * - Su cuenta esté activa.
+   */
+  @IsOptional()
+  @IsUUID("4", {
+    message:
+      "El identificador del chofer habitual no es válido.",
+  })
+  choferId?: string | null;
+
+  /**
+   * La capacidad se calcula automáticamente:
    * FLOTA = 40
    * NOAH = 7
    * HIACE = 10

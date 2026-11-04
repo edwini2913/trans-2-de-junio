@@ -1,3 +1,4 @@
+
 import {
   BadRequestException,
   ConflictException,
@@ -11,15 +12,13 @@ import {
 
 import {
   Repository,
+  SelectQueryBuilder,
 } from "typeorm";
 
 import {
-  CreateVehiculoDto,
-} from "./dto/create-vehiculo.dto";
-
-import {
-  UpdateVehiculoDto,
-} from "./dto/update-vehiculo.dto";
+  RolUsuario,
+  Usuario,
+} from "../users/entities/usuario.entity";
 
 import {
   CAPACIDAD_POR_TIPO,
@@ -28,6 +27,14 @@ import {
   obtenerNombreTipoVehiculo,
   TipoVehiculo,
 } from "./constants/vehiculo.constants";
+
+import {
+  CreateVehiculoDto,
+} from "./dto/create-vehiculo.dto";
+
+import {
+  UpdateVehiculoDto,
+} from "./dto/update-vehiculo.dto";
 
 import {
   Vehiculo,
@@ -39,8 +46,78 @@ export class VehiculosService {
     @InjectRepository(Vehiculo)
     private readonly vehiculosRepository:
       Repository<Vehiculo>,
+
+    @InjectRepository(Usuario)
+    private readonly usuariosRepository:
+      Repository<Usuario>,
   ) {}
 
+  /**
+   * Consulta vehículos con datos básicos
+   * del chofer habitual.
+   *
+   * No expone contraseñas ni tokens.
+   */
+  private consultaConChofer():
+    SelectQueryBuilder<Vehiculo> {
+    return this.vehiculosRepository
+      .createQueryBuilder("vehiculo")
+      .leftJoin(
+        "vehiculo.choferHabitual",
+        "chofer",
+      )
+      .addSelect([
+        "chofer.id",
+        "chofer.nombre",
+        "chofer.apellido",
+        "chofer.rol",
+        "chofer.estado",
+      ]);
+  }
+
+  /**
+   * Comprueba que el chofer exista,
+   * tenga rol CHOFER y esté activo.
+   */
+  private async validarChoferHabitual(
+    choferId: string,
+  ): Promise<Usuario> {
+    const chofer =
+      await this.usuariosRepository.findOne({
+        where: {
+          id: choferId,
+        },
+      });
+
+    if (!chofer) {
+      throw new NotFoundException(
+        "El chofer seleccionado no existe.",
+      );
+    }
+
+    if (
+      chofer.rol !==
+      RolUsuario.CHOFER
+    ) {
+      throw new BadRequestException(
+        "El usuario seleccionado no tiene el rol CHOFER.",
+      );
+    }
+
+    if (!chofer.estado) {
+      throw new BadRequestException(
+        "No se puede asignar un chofer desactivado.",
+      );
+    }
+
+    return chofer;
+  }
+
+  /**
+   * 1. REGISTRAR VEHÍCULO
+   *
+   * El chofer habitual es opcional.
+   */
   async crear(
     createVehiculoDto: CreateVehiculoDto,
   ): Promise<Vehiculo> {
@@ -48,6 +125,12 @@ export class VehiculosService {
       createVehiculoDto.placa
         .trim()
         .toUpperCase();
+
+    if (!placaNormalizada) {
+      throw new BadRequestException(
+        "La placa es obligatoria.",
+      );
+    }
 
     const placaExiste =
       await this.vehiculosRepository.findOne({
@@ -66,11 +149,6 @@ export class VehiculosService {
       createVehiculoDto.tipo,
     );
 
-    /*
-     * La capacidad se obtiene automáticamente.
-     * No se confía en el número enviado desde
-     * el navegador.
-     */
     const capacidad =
       obtenerCapacidadPorTipo(
         createVehiculoDto.tipo,
@@ -85,12 +163,31 @@ export class VehiculosService {
       numeroFlota,
     );
 
+    let choferHabitual:
+      Usuario | null = null;
+
+    if (createVehiculoDto.choferId) {
+      choferHabitual =
+        await this.validarChoferHabitual(
+          createVehiculoDto.choferId,
+        );
+    }
+
+    // Separar choferId del resto del DTO.
+    // La asociación se guarda mediante
+    // la relación choferHabitual.
+    const {
+      choferId: _choferId,
+      ...datosVehiculo
+    } = createVehiculoDto;
+
+    void _choferId;
+
     const vehiculo =
       this.vehiculosRepository.create({
-        ...createVehiculoDto,
+        ...datosVehiculo,
 
-        placa:
-          placaNormalizada,
+        placa: placaNormalizada,
 
         marca:
           createVehiculoDto.marca
@@ -102,76 +199,104 @@ export class VehiculosService {
 
         numeroFlota,
 
-        /*
-         * Siempre se coloca después del DTO
-         * para impedir que sea sobrescrito.
-         */
         capacidad,
 
         estado:
           createVehiculoDto.estado ??
           true,
+
+        choferHabitual,
       });
 
-    return this.vehiculosRepository.save(
-      vehiculo,
+    const guardado =
+      await this.vehiculosRepository.save(
+        vehiculo,
+      );
+
+    return this.buscarPorId(
+      guardado.id,
     );
   }
 
-  async listarTodos(): Promise<Vehiculo[]> {
-    return this.vehiculosRepository.find({
-      order: {
-        tipo: "ASC",
-        placa: "ASC",
-      },
-    });
-  }
-
-  async listarDisponibles(): Promise<Vehiculo[]> {
-    return this.vehiculosRepository.find({
-      where: {
-        estado: true,
-      },
-      order: {
-        tipo: "ASC",
-        placa: "ASC",
-      },
-    });
+  /**
+   * 2. LISTAR TODOS LOS VEHÍCULOS
+   */
+  async listarTodos():
+    Promise<Vehiculo[]> {
+    return this.consultaConChofer()
+      .orderBy(
+        "vehiculo.tipo",
+        "ASC",
+      )
+      .addOrderBy(
+        "vehiculo.placa",
+        "ASC",
+      )
+      .getMany();
   }
 
   /**
-   * Lista únicamente flotas disponibles.
+   * 3. LISTAR VEHÍCULOS ACTIVOS
+   */
+  async listarDisponibles():
+    Promise<Vehiculo[]> {
+    return this.consultaConChofer()
+      .where(
+        "vehiculo.estado = :estado",
+        {
+          estado: true,
+        },
+      )
+      .orderBy(
+        "vehiculo.tipo",
+        "ASC",
+      )
+      .addOrderBy(
+        "vehiculo.placa",
+        "ASC",
+      )
+      .getMany();
+  }
+
+  /**
+   * 4. LISTAR FLOTAS DISPONIBLES
    */
   async listarFlotasDisponibles():
     Promise<Vehiculo[]> {
-    return this.vehiculosRepository.find({
-      where: {
-        estado: true,
-        tipo: TipoVehiculo.FLOTA,
-      },
-      order: {
-        numeroFlota: "ASC",
-        placa: "ASC",
-      },
-    });
+    return this.consultaConChofer()
+      .where(
+        "vehiculo.estado = :estado",
+        {
+          estado: true,
+        },
+      )
+      .andWhere(
+        "vehiculo.tipo = :tipo",
+        {
+          tipo: TipoVehiculo.FLOTA,
+        },
+      )
+      .orderBy(
+        "vehiculo.numeroFlota",
+        "ASC",
+      )
+      .addOrderBy(
+        "vehiculo.placa",
+        "ASC",
+      )
+      .getMany();
   }
 
   /**
-   * Lista los Noah y Hiace disponibles
-   * para el sector de salidas rápidas.
+   * 5. LISTAR NOAH Y HIACE
+   *
+   * Devuelve también el chofer habitual,
+   * si el vehículo tiene uno asignado.
    */
   async listarSectorRapido():
     Promise<Vehiculo[]> {
     const vehiculos =
-      await this.vehiculosRepository.find({
-        where: {
-          estado: true,
-        },
-        order: {
-          tipo: "ASC",
-          placa: "ASC",
-        },
-      });
+      await this.listarDisponibles();
 
     return vehiculos.filter(
       (vehiculo) =>
@@ -181,15 +306,21 @@ export class VehiculosService {
     );
   }
 
+  /**
+   * 6. BUSCAR VEHÍCULO POR ID
+   */
   async buscarPorId(
     id: string,
   ): Promise<Vehiculo> {
     const vehiculo =
-      await this.vehiculosRepository.findOne({
-        where: {
-          id,
-        },
-      });
+      await this.consultaConChofer()
+        .where(
+          "vehiculo.id = :id",
+          {
+            id,
+          },
+        )
+        .getOne();
 
     if (!vehiculo) {
       throw new NotFoundException(
@@ -200,31 +331,101 @@ export class VehiculosService {
     return vehiculo;
   }
 
+  /**
+   * 7. BUSCAR VEHÍCULO POR PLACA
+   *
+   * Permite a la secretaria buscar
+   * un Noah o Hiace por su placa
+   * y consultar su chofer habitual.
+   */
+  async buscarPorPlaca(
+    placa: string,
+  ): Promise<Vehiculo> {
+    const placaNormalizada =
+      placa.trim().toUpperCase();
+
+    if (!placaNormalizada) {
+      throw new BadRequestException(
+        "Debes ingresar una placa.",
+      );
+    }
+
+    const vehiculo =
+      await this.consultaConChofer()
+        .where(
+          "vehiculo.placa = :placa",
+          {
+            placa: placaNormalizada,
+          },
+        )
+        .getOne();
+
+    if (!vehiculo) {
+      throw new NotFoundException(
+        "No existe un vehículo registrado con esa placa.",
+      );
+    }
+
+    return vehiculo;
+  }
+
+  /**
+   * 8. ACTUALIZAR VEHÍCULO
+   *
+   * choferId:
+   *
+   * undefined = no cambiar
+   * UUID = asignar otro chofer
+   * null = quitar chofer habitual
+   */
   async actualizar(
     id: string,
     updateVehiculoDto: UpdateVehiculoDto,
   ): Promise<Vehiculo> {
     const vehiculo =
-      await this.buscarPorId(id);
+      await this.vehiculosRepository
+        .findOne({
+          where: {
+            id,
+          },
+        });
+
+    if (!vehiculo) {
+      throw new NotFoundException(
+        "El vehículo seleccionado no existe.",
+      );
+    }
 
     const tipo =
       updateVehiculoDto.tipo ??
       vehiculo.tipo;
 
-    this.validarTipoVehiculo(tipo);
+    this.validarTipoVehiculo(
+      tipo,
+    );
 
-    /*
-     * Si cambia de tipo, su capacidad
-     * también cambia automáticamente.
-     */
     const capacidad =
-      obtenerCapacidadPorTipo(tipo);
+      obtenerCapacidadPorTipo(
+        tipo,
+      );
 
-    if (updateVehiculoDto.placa) {
+    /**
+     * ACTUALIZAR PLACA
+     */
+    if (
+      updateVehiculoDto.placa !==
+      undefined
+    ) {
       const placaNormalizada =
         updateVehiculoDto.placa
           .trim()
           .toUpperCase();
+
+      if (!placaNormalizada) {
+        throw new BadRequestException(
+          "La placa no puede quedar vacía.",
+        );
+      }
 
       const otroVehiculo =
         await this.vehiculosRepository
@@ -256,6 +457,9 @@ export class VehiculosService {
         placaNormalizada;
     }
 
+    /**
+     * ACTUALIZAR MARCA
+     */
     if (
       updateVehiculoDto.marca !==
       undefined
@@ -265,6 +469,9 @@ export class VehiculosService {
           .trim();
     }
 
+    /**
+     * ACTUALIZAR MODELO
+     */
     if (
       updateVehiculoDto.modelo !==
       undefined
@@ -274,6 +481,9 @@ export class VehiculosService {
           .trim();
     }
 
+    /**
+     * ACTUALIZAR NÚMERO INTERNO
+     */
     if (
       updateVehiculoDto.numeroFlota !==
       undefined
@@ -292,10 +502,16 @@ export class VehiculosService {
         numeroFlota;
     }
 
+    /**
+     * ACTUALIZAR TIPO Y CAPACIDAD
+     */
     vehiculo.tipo = tipo;
     vehiculo.capacidad =
       capacidad;
 
+    /**
+     * ACTUALIZAR ESTADO
+     */
     if (
       updateVehiculoDto.estado !==
       undefined
@@ -304,18 +520,57 @@ export class VehiculosService {
         updateVehiculoDto.estado;
     }
 
-    return this.vehiculosRepository.save(
+    /**
+     * ACTUALIZAR CHOFER HABITUAL
+     */
+    if (
+      updateVehiculoDto.choferId !==
+      undefined
+    ) {
+      if (
+        updateVehiculoDto.choferId ===
+        null
+      ) {
+        vehiculo.choferHabitual =
+          null;
+      } else {
+        vehiculo.choferHabitual =
+          await this.validarChoferHabitual(
+            updateVehiculoDto.choferId,
+          );
+      }
+    }
+
+    await this.vehiculosRepository.save(
       vehiculo,
+    );
+
+    return this.buscarPorId(
+      id,
     );
   }
 
+  /**
+   * 9. ELIMINAR VEHÍCULO
+   */
   async eliminar(
     id: string,
   ): Promise<{
     mensaje: string;
   }> {
     const vehiculo =
-      await this.buscarPorId(id);
+      await this.vehiculosRepository
+        .findOne({
+          where: {
+            id,
+          },
+        });
+
+    if (!vehiculo) {
+      throw new NotFoundException(
+        "El vehículo seleccionado no existe.",
+      );
+    }
 
     try {
       await this.vehiculosRepository.remove(
@@ -333,6 +588,9 @@ export class VehiculosService {
     };
   }
 
+  /**
+   * 10. VALIDAR TIPO DE VEHÍCULO
+   */
   private validarTipoVehiculo(
     tipo: TipoVehiculo,
   ): void {
@@ -363,6 +621,9 @@ export class VehiculosService {
     }
   }
 
+  /**
+   * 11. NORMALIZAR NÚMERO INTERNO
+   */
   private normalizarNumeroFlota(
     numeroFlota:
       | string
@@ -377,6 +638,9 @@ export class VehiculosService {
     return numero || null;
   }
 
+  /**
+   * 12. VALIDAR NÚMERO INTERNO ÚNICO
+   */
   private async validarNumeroFlotaUnico(
     numeroFlota: string | null,
     vehiculoIdActual?: string,

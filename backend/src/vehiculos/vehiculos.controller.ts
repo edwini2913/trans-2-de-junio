@@ -1,3 +1,4 @@
+
 import {
   Body,
   Controller,
@@ -7,7 +8,12 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from "@nestjs/common";
+
+import {
+  GestionarChoferesGuard,
+} from "../auth/guards/gestionar-choferes.guard";
 
 import {
   CreateVehiculoDto,
@@ -28,32 +34,41 @@ export class VehiculosController {
       VehiculosService,
   ) {}
 
+  /**
+   * Registrar vehículo.
+   * ADMINISTRADOR / SECRETARIA
+   */
   @Post()
+  @UseGuards(GestionarChoferesGuard)
   crear(
     @Body()
-    createVehiculoDto:
-      CreateVehiculoDto,
+    createVehiculoDto: CreateVehiculoDto,
   ) {
     return this.vehiculosService.crear(
       createVehiculoDto,
     );
   }
 
+  /**
+   * Listar todos los vehículos.
+   * ADMINISTRADOR / SECRETARIA
+   */
   @Get()
+  @UseGuards(GestionarChoferesGuard)
   listarTodos() {
-    return this.vehiculosService
-      .listarTodos();
-  }
-
-  @Get("disponibles")
-  listarDisponibles() {
-    return this.vehiculosService
-      .listarDisponibles();
+    return this.vehiculosService.listarTodos();
   }
 
   /**
-   * Lista únicamente las flotas activas
-   * disponibles para viajes programados.
+   * Listar vehículos activos.
+   */
+  @Get("disponibles")
+  listarDisponibles() {
+    return this.vehiculosService.listarDisponibles();
+  }
+
+  /**
+   * Listar flotas disponibles.
    */
   @Get("flotas/disponibles")
   listarFlotasDisponibles() {
@@ -62,8 +77,7 @@ export class VehiculosController {
   }
 
   /**
-   * Lista Noah y Hiace activos disponibles
-   * para las salidas rápidas.
+   * Listar Noah y Hiace disponibles.
    */
   @Get("sector-rapido")
   listarSectorRapido() {
@@ -72,49 +86,67 @@ export class VehiculosController {
   }
 
   /**
-   * Esta ruta debe permanecer después
-   * de todas las rutas específicas.
+   * NUEVO:
+   * Buscar vehículo por placa.
+   *
+   * Devuelve el vehículo y su chofer habitual
+   * cuando tiene uno asignado.
+   *
+   * ADMINISTRADOR / SECRETARIA
+   *
+   * IMPORTANTE:
+   * Debe estar antes de @Get(":id").
+   */
+  @Get("placa/:placa")
+  @UseGuards(GestionarChoferesGuard)
+  buscarPorPlaca(
+    @Param("placa")
+    placa: string,
+  ) {
+    return this.vehiculosService
+      .buscarPorPlaca(placa);
+  }
+
+  /**
+   * Buscar vehículo por ID.
    */
   @Get(":id")
   buscarPorId(
-    @Param(
-      "id",
-      new ParseUUIDPipe(),
-    )
+    @Param("id", ParseUUIDPipe)
     id: string,
   ) {
-    return this.vehiculosService
-      .buscarPorId(id);
+    return this.vehiculosService.buscarPorId(id);
   }
 
+  /**
+   * Modificar vehículo o chofer habitual.
+   * ADMINISTRADOR / SECRETARIA
+   */
   @Patch(":id")
+  @UseGuards(GestionarChoferesGuard)
   actualizar(
-    @Param(
-      "id",
-      new ParseUUIDPipe(),
-    )
+    @Param("id", ParseUUIDPipe)
     id: string,
 
     @Body()
-    updateVehiculoDto:
-      UpdateVehiculoDto,
+    updateVehiculoDto: UpdateVehiculoDto,
   ) {
-    return this.vehiculosService
-      .actualizar(
-        id,
-        updateVehiculoDto,
-      );
+    return this.vehiculosService.actualizar(
+      id,
+      updateVehiculoDto,
+    );
   }
 
+  /**
+   * Eliminar vehículo.
+   * ADMINISTRADOR / SECRETARIA
+   */
   @Delete(":id")
+  @UseGuards(GestionarChoferesGuard)
   eliminar(
-    @Param(
-      "id",
-      new ParseUUIDPipe(),
-    )
+    @Param("id", ParseUUIDPipe)
     id: string,
   ) {
-    return this.vehiculosService
-      .eliminar(id);
+    return this.vehiculosService.eliminar(id);
   }
 }

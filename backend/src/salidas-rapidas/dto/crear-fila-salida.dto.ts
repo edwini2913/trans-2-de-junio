@@ -1,3 +1,4 @@
+
 import {
   Type,
 } from "class-transformer";
@@ -15,93 +16,96 @@ import {
   Matches,
   Max,
   Min,
+  ValidateNested,
 } from "class-validator";
 
+/**
+ * Relaciona un vehículo seleccionado
+ * con el chofer que conducirá ese día.
+ */
+export class AsignacionChoferFilaDto {
+  @IsUUID("4", {
+    message:
+      "El identificador del vehículo asignado no es válido.",
+  })
+  vehiculoId!: string;
+
+  @IsUUID("4", {
+    message:
+      "El identificador del chofer asignado no es válido.",
+  })
+  choferId!: string;
+}
+
 export class CrearFilaSalidaDto {
-  /**
-   * Ruta en la que trabajarán
-   * los Noah y Hiace.
-   */
-  @IsUUID(
-    "4",
-    {
-      message:
-        "El identificador de la ruta no es válido.",
-    },
-  )
+  @IsUUID("4", {
+    message:
+      "El identificador de la ruta no es válido.",
+  })
   rutaId!: string;
 
-  /**
-   * Fecha de trabajo de la fila.
-   */
-  @IsDateString(
-    {},
-    {
-      message:
-        "La fecha de la fila no es válida.",
-    },
-  )
+  @IsDateString({}, {
+    message:
+      "La fecha de la fila no es válida.",
+  })
   fecha!: string;
 
   /**
-   * La administración puede habilitar
-   * todos los vehículos necesarios.
-   *
-   * Ya no existe el límite de cinco.
+   * Se mantiene este campo para conservar
+   * la compatibilidad con el frontend.
    */
   @IsArray({
     message:
       "Los vehículos deben enviarse en una lista.",
   })
-  @ArrayMinSize(
-    1,
-    {
-      message:
-        "Debes seleccionar al menos un vehículo.",
-    },
-  )
+  @ArrayMinSize(1, {
+    message:
+      "Debes seleccionar al menos un vehículo.",
+  })
   @ArrayUnique({
     message:
-      "No puedes seleccionar el mismo vehículo más de una vez.",
+      "No puedes seleccionar vehículos repetidos.",
   })
-  @IsUUID(
-    "4",
-    {
-      each: true,
-      message:
-        "Uno o más identificadores de vehículo no son válidos.",
-    },
-  )
+  @IsUUID("4", {
+    each: true,
+    message:
+      "Uno o más vehículos no son válidos.",
+  })
   vehiculoIds!: string[];
 
   /**
-   * Precio individual del pasaje.
+   * Asignación de choferes a vehículos.
+   *
+   * Es opcional temporalmente para mantener
+   * la compatibilidad con el sistema actual.
+   *
+   * El servicio deberá verificar que cada
+   * vehículo y chofer sean válidos.
    */
+  @IsOptional()
+  @IsArray({
+    message:
+      "Las asignaciones deben enviarse en una lista.",
+  })
+  @ValidateNested({
+    each: true,
+  })
+  @Type(() => AsignacionChoferFilaDto)
+  asignacionesChoferes?: AsignacionChoferFilaDto[];
+
   @Type(() => Number)
-  @IsNumber(
-    {
-      maxDecimalPlaces: 2,
-    },
-    {
-      message:
-        "El precio debe ser un número válido.",
-    },
-  )
-  @Min(
-    0.01,
-    {
-      message:
-        "El precio debe ser mayor que cero.",
-    },
-  )
+  @IsNumber({
+    maxDecimalPlaces: 2,
+  }, {
+    message:
+      "El precio debe ser un número válido.",
+  })
+  @Min(0.01, {
+    message:
+      "El precio debe ser mayor que cero.",
+  })
   precio!: number;
 
-  /**
-   * Hora en la que comienza la atención.
-   *
-   * Si no se envía, el servicio utilizará
-   * automáticamente la hora actual.
-   */
   @IsOptional()
   @IsString({
     message:
@@ -116,41 +120,25 @@ export class CrearFilaSalidaDto {
   )
   horaInicio?: string;
 
-  /**
-   * Tiempo aproximado entre vehículos.
-   */
   @IsOptional()
   @Type(() => Number)
   @IsInt({
     message:
       "El intervalo debe ser un número entero.",
   })
-  @Min(
-    5,
-    {
-      message:
-        "El intervalo mínimo es de 5 minutos.",
-    },
-  )
-  @Max(
-    180,
-    {
-      message:
-        "El intervalo máximo es de 180 minutos.",
-    },
-  )
+  @Min(5, {
+    message:
+      "El intervalo mínimo es de 5 minutos.",
+  })
+  @Max(180, {
+    message:
+      "El intervalo máximo es de 180 minutos.",
+  })
   intervaloMinutos?: number;
 
-  /**
-   * Administrador o secretaria que
-   * habilita la fila.
-   */
-  @IsUUID(
-    "4",
-    {
-      message:
-        "El identificador del administrador o secretaria no es válido.",
-    },
-  )
+  @IsUUID("4", {
+    message:
+      "El identificador del administrador o secretaria no es válido.",
+  })
   habilitadoPor!: string;
 }

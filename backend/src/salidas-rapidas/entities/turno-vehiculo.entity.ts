@@ -1,3 +1,4 @@
+
 import {
   Check,
   Column,
@@ -15,6 +16,10 @@ import {
 } from "../../rutas/entities/ruta.entity";
 
 import {
+  Usuario,
+} from "../../users/entities/usuario.entity";
+
+import {
   Vehiculo,
 } from "../../vehiculos/entities/vehiculo.entity";
 
@@ -23,41 +28,12 @@ import {
 } from "../../viajes/entities/viaje.entity";
 
 export enum EstadoTurnoVehiculo {
-  /**
-   * Vehículo que actualmente recibe
-   * compras y reservas.
-   */
   VENDIENDO = "VENDIENDO",
-
-  /**
-   * Segundo vehículo de la fila.
-   */
   SIGUIENTE = "SIGUIENTE",
-
-  /**
-   * Vehículos que esperan su turno.
-   */
   EN_ESPERA = "EN_ESPERA",
-
-  /**
-   * Alcanzó su capacidad máxima.
-   */
   COMPLETO = "COMPLETO",
-
-  /**
-   * La secretaria autorizó la salida
-   * o el vehículo salió automáticamente.
-   */
   EN_RUTA = "EN_RUTA",
-
-  /**
-   * El recorrido fue completado.
-   */
   FINALIZADO = "FINALIZADO",
-
-  /**
-   * Fue retirado de la fila.
-   */
   CANCELADO = "CANCELADO",
 }
 
@@ -67,61 +43,47 @@ export enum EstadoTurnoVehiculo {
 })
 @Index(
   "IDX_TURNOS_RUTA_FECHA",
-  [
-    "ruta",
-    "fecha",
-  ],
+  ["ruta", "fecha"],
 )
 @Index(
   "IDX_TURNOS_ESTADO",
-  [
-    "estado",
-  ],
+  ["estado"],
 )
 @Index(
   "UQ_TURNO_POSICION_RUTA_FECHA",
-  [
-    "ruta",
-    "fecha",
-    "posicion",
-  ],
+  ["ruta", "fecha", "posicion"],
   {
     unique: true,
   },
 )
 @Index(
   "UQ_TURNO_VEHICULO_RUTA_FECHA",
-  [
-    "ruta",
-    "fecha",
-    "vehiculo",
-  ],
+  ["ruta", "fecha", "vehiculo"],
   {
     unique: true,
   },
 )
 @Index(
   "UQ_TURNO_VIAJE",
-  [
-    "viaje",
-  ],
+  ["viaje"],
   {
     unique: true,
   },
+)
+@Index(
+  "IDX_TURNOS_CHOFER",
+  ["chofer"],
 )
 @Check(
   "CHK_TURNO_POSICION_POSITIVA",
   '"posicion" > 0',
 )
 export class TurnoVehiculo {
-  @PrimaryGeneratedColumn(
-    "uuid",
-  )
+  @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   /**
-   * Ruta para la cual fue habilitado
-   * el vehículo rápido.
+   * Ruta correspondiente a la salida rápida.
    */
   @ManyToOne(
     () => Ruta,
@@ -136,7 +98,7 @@ export class TurnoVehiculo {
   ruta!: Ruta;
 
   /**
-   * Noah o Hiace asignado al turno.
+   * Vehículo Noah o Hiace registrado.
    */
   @ManyToOne(
     () => Vehiculo,
@@ -151,8 +113,30 @@ export class TurnoVehiculo {
   vehiculo!: Vehiculo;
 
   /**
-   * Viaje utilizado para generar asientos,
-   * reservas, ventas, pagos y tickets.
+   * Chofer asignado a esta salida.
+   *
+   * Se deja nullable para mantener
+   * compatibilidad con turnos anteriores.
+   *
+   * La secretaria debe confirmar el chofer
+   * al registrar una nueva llegada.
+   */
+  @ManyToOne(
+    () => Usuario,
+    {
+      nullable: true,
+      eager: false,
+      onDelete: "SET NULL",
+    },
+  )
+  @JoinColumn({
+    name: "chofer_id",
+  })
+  chofer!: Usuario | null;
+
+  /**
+   * Viaje utilizado por los módulos
+   * de asientos, reservas, pagos y tickets.
    */
   @ManyToOne(
     () => Viaje,
@@ -176,12 +160,7 @@ export class TurnoVehiculo {
   fecha!: string;
 
   /**
-   * Orden asignado por la secretaria.
-   *
-   * Ejemplo:
-   * 1 = vehículo actual.
-   * 2 = siguiente.
-   * 3, 4 y 5 = en espera.
+   * Posición según el orden de llegada.
    */
   @Column({
     type: "integer",
@@ -189,18 +168,19 @@ export class TurnoVehiculo {
   })
   posicion!: number;
 
+  /**
+   * Estado del vehículo dentro de la fila.
+   */
   @Column({
     type: "varchar",
     length: 30,
     name: "estado",
-    default:
-      EstadoTurnoVehiculo.EN_ESPERA,
+    default: EstadoTurnoVehiculo.EN_ESPERA,
   })
   estado!: EstadoTurnoVehiculo;
 
   /**
-   * Indica si el turno permanece habilitado
-   * para mostrarse a usuarios y administración.
+   * Indica si el turno permanece activo.
    */
   @Column({
     type: "boolean",
@@ -210,8 +190,7 @@ export class TurnoVehiculo {
   activo!: boolean;
 
   /**
-   * Momento en que el vehículo comenzó
-   * a recibir compras y reservas.
+   * Momento en que comenzó a vender pasajes.
    */
   @Column({
     type: "timestamp",
@@ -221,7 +200,7 @@ export class TurnoVehiculo {
   fechaInicioVenta!: Date | null;
 
   /**
-   * Momento real de salida.
+   * Momento real de salida del vehículo.
    */
   @Column({
     type: "timestamp",
@@ -231,11 +210,8 @@ export class TurnoVehiculo {
   fechaSalida!: Date | null;
 
   /**
-   * Identificador del administrador o
-   * secretaria que habilitó el turno.
-   *
-   * Se almacena como UUID para conservar
-   * compatibilidad con la autenticación actual.
+   * Administrador o secretaria responsable
+   * de habilitar el turno.
    */
   @Column({
     type: "uuid",
@@ -247,8 +223,7 @@ export class TurnoVehiculo {
   @CreateDateColumn({
     type: "timestamp",
     name: "fecha_registro",
-    default: () =>
-      "CURRENT_TIMESTAMP",
+    default: () => "CURRENT_TIMESTAMP",
   })
   fechaRegistro!: Date;
 

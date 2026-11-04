@@ -8,6 +8,12 @@ import {
   Info,
   Loader2,
   MapPinned,
+  MapPin,
+  Phone,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  AlertCircle,
   Megaphone,
   Play,
   Plus,
@@ -30,8 +36,12 @@ import {
   obtenerAvisoSalidaActivo,
   obtenerFilaSalida,
   obtenerVehiculosRapidos,
+  obtenerChoferesActivos,
   publicarAvisoSalida,
   retirarAvisoSalida,
+  obtenerRecojosPorViaje,
+  actualizarEstadoRecojo,
+  obtenerEnlaceMapaRecojo,
 } from "../../services/salidas-rapidas.service";
 
 import type {
@@ -40,6 +50,9 @@ import type {
   TipoServicioAviso,
   TurnoSalidaRapida,
   VehiculoRapido,
+  ChoferDisponible,
+  SolicitudRecojo,
+  EstadoSolicitudRecojo,
 } from "../../services/salidas-rapidas.service";
 
 import {
@@ -139,6 +152,149 @@ const obtenerError = (
   return "Ocurrió un error inesperado.";
 };
 
+/**
+ * Recojos pertenecientes al viaje elegido.
+ * Se consulta solo cuando administracion abre el detalle.
+ * La ruta del backend requiere JWT + rol administrativo.
+ */
+function RecojosPorViaje({
+  viajeId,
+  administradorId,
+}: {
+  viajeId: string;
+  administradorId: string;
+}) {
+  const [solicitudes, setSolicitudes] = useState<SolicitudRecojo[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+  const [mensaje, setMensaje] = useState("");
+  const [actualizandoId, setActualizandoId] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    let vigente = true;
+    setCargando(true);
+    setError("");
+    void obtenerRecojosPorViaje(viajeId)
+      .then((respuesta) => {
+        if (vigente) setSolicitudes(respuesta);
+      })
+      .catch((fallo: unknown) => {
+        if (vigente) setError(obtenerError(fallo));
+      })
+      .finally(() => {
+        if (vigente) setCargando(false);
+      });
+    return () => { vigente = false; };
+  }, [viajeId, revision]);
+
+  const cambiarEstado = async (
+    solicitud: SolicitudRecojo,
+    estado: EstadoSolicitudRecojo,
+  ) => {
+    if (!administradorId || actualizandoId) return;
+    const accion = estado === "CONFIRMADA" ? "confirmar" : "cancelar";
+    if (!window.confirm(`¿Deseas ${accion} el recojo de ${solicitud.usuario.nombre} ${solicitud.usuario.apellido}?`)) return;
+
+    try {
+      setActualizandoId(solicitud.id);
+      setError("");
+      setMensaje("");
+      await actualizarEstadoRecojo(solicitud.id, {
+        estado,
+        administradorId,
+      });
+      setMensaje(`Solicitud ${estado === "CONFIRMADA" ? "confirmada" : "cancelada"} correctamente.`);
+      setRevision((anterior) => anterior + 1);
+    } catch (fallo) {
+      setError(obtenerError(fallo));
+    } finally {
+      setActualizandoId(null);
+    }
+  };
+
+  const pendientes = solicitudes.filter((r) => r.estado === "PENDIENTE").length;
+  const confirmadas = solicitudes.filter((r) => r.estado === "CONFIRMADA").length;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-emerald-200 bg-white p-3 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h4 className="font-black text-slate-900">Solicitudes de recojo</h4>
+          <p className="mt-1 text-xs text-slate-500">
+            {pendientes} pendientes · {confirmadas} confirmadas · {solicitudes.length} en total
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={cargando || Boolean(actualizandoId)}
+          onClick={() => setRevision((anterior) => anterior + 1)}
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50"
+        >
+          <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
+          Actualizar recojos
+        </button>
+      </div>
+
+      {mensaje && <p role="status" className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{mensaje}</p>}
+      {error && <p role="alert" className="mt-3 flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={18} className="shrink-0" />{error}</p>}
+      {cargando ? (
+        <div className="mt-4 flex items-center gap-2 py-5 text-sm font-semibold text-emerald-700">
+          <Loader2 size={18} className="animate-spin" /> Consultando solicitudes...
+        </div>
+      ) : solicitudes.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Este vehículo todavía no tiene solicitudes de recojo.</p>
+      ) : (
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          {solicitudes.map((solicitud) => {
+            const urlMapa = obtenerEnlaceMapaRecojo(solicitud, "VER");
+            return (
+              <article key={solicitud.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words font-black text-slate-900">
+                      {solicitud.usuario.nombre} {solicitud.usuario.apellido}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1 text-sm text-slate-600"><Phone size={14} />{solicitud.telefono}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${solicitud.estado === "PENDIENTE" ? "bg-amber-100 text-amber-800" : solicitud.estado === "CONFIRMADA" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>
+                    {solicitud.estado.replaceAll("_", " ")}
+                  </span>
+                </div>
+                <p className="mt-3 break-words text-sm text-slate-800"><span className="font-black">Referencia:</span> {solicitud.referencia}</p>
+                {solicitud.observacion && (
+                  <p className="mt-1 break-words text-sm text-slate-600"><span className="font-bold">Observación:</span> {solicitud.observacion}</p>
+                )}
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  {urlMapa ? (
+                    <a href={urlMapa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-bold text-emerald-700">
+                      <MapPin size={16} /> Ver ubicación <ExternalLink size={14} />
+                    </a>
+                  ) : (
+                    <span className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Sin GPS: usar referencia escrita</span>
+                  )}
+                  {solicitud.estado === "PENDIENTE" && (
+                    <>
+                      <button type="button" disabled={Boolean(actualizandoId)} onClick={() => void cambiarEstado(solicitud, "CONFIRMADA")} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-black text-white disabled:opacity-50">
+                        {actualizandoId === solicitud.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                        Confirmar
+                      </button>
+                      <button type="button" disabled={Boolean(actualizandoId)} onClick={() => void cambiarEstado(solicitud, "CANCELADA")} className="rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-bold text-red-700 disabled:opacity-50">Cancelar</button>
+                    </>
+                  )}
+                  {solicitud.estado === "CONFIRMADA" && (
+                    <button type="button" disabled={Boolean(actualizandoId)} onClick={() => void cambiarEstado(solicitud, "CANCELADA")} className="rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-bold text-red-700 disabled:opacity-50">Cancelar recojo</button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SalidasRapidas() {
   const usuario =
     obtenerUsuarioLocal();
@@ -152,6 +308,12 @@ export default function SalidasRapidas() {
     vehiculos,
     setVehiculos,
   ] = useState<VehiculoRapido[]>([]);
+
+  const [choferes, setChoferes] = useState<ChoferDisponible[]>([]);
+  const [choferesPorVehiculo, setChoferesPorVehiculo] = useState<Record<string, string>>({});
+  const [busquedaPlaca, setBusquedaPlaca] = useState("");
+  const [cargandoChoferes, setCargandoChoferes] = useState(false);
+  const [errorChoferes, setErrorChoferes] = useState("");
 
   const [
     vehiculosSeleccionados,
@@ -184,6 +346,8 @@ export default function SalidasRapidas() {
     fila,
     setFila,
   ] = useState<TurnoSalidaRapida[]>([]);
+
+  const [viajeRecojosAbierto, setViajeRecojosAbierto] = useState<string | null>(null);
 
   const [
     avisoActivo,
@@ -304,6 +468,20 @@ export default function SalidasRapidas() {
       [],
     );
 
+  const cargarChoferes = useCallback(async () => {
+    try {
+      setCargandoChoferes(true);
+      setErrorChoferes("");
+      const lista = await obtenerChoferesActivos();
+      setChoferes(lista);
+    } catch (error) {
+      setChoferes([]);
+      setErrorChoferes(obtenerError(error));
+    } finally {
+      setCargandoChoferes(false);
+    }
+  }, []);
+
   const consultarFila =
     useCallback(
       async (
@@ -353,7 +531,8 @@ export default function SalidasRapidas() {
 
   useEffect(() => {
     void cargarDatos();
-  }, [cargarDatos]);
+    void cargarChoferes();
+  }, [cargarDatos, cargarChoferes]);
 
   useEffect(() => {
     if (!rutaId || !fecha) {
@@ -419,22 +598,39 @@ export default function SalidasRapidas() {
   const vehiculosParaSeleccionar =
     useMemo(
       () =>
-        vehiculos.filter(
-          (vehiculo) =>
-            !idsVehiculosEnFila.has(
-              vehiculo.id,
-            ),
+        vehiculos.filter((vehiculo) =>
+          !idsVehiculosEnFila.has(vehiculo.id) &&
+          (vehiculo.placa.toUpperCase().includes(busquedaPlaca.trim().toUpperCase()) ||
+            vehiculosSeleccionados.includes(vehiculo.id)),
         ),
-      [
-        idsVehiculosEnFila,
-        vehiculos,
-      ],
+      [idsVehiculosEnFila, vehiculos, busquedaPlaca, vehiculosSeleccionados],
     );
 
   const seleccionarVehiculo = (
     vehiculoId: string,
   ) => {
     setMensaje("");
+
+    // Al seleccionar una placa, sugerir su chofer habitual.
+    // No sobrescribir una elección manual ni asignar un chofer
+    // inactivo o ya elegido para otro vehículo de esta fila.
+    const vehiculo = vehiculos.find((v) => v.id === vehiculoId);
+    const habitual = vehiculo?.choferHabitual;
+    if (
+      habitual &&
+      choferes.some((c) => c.id === habitual.id) &&
+      !vehiculosSeleccionados.includes(vehiculoId)
+    ) {
+      setChoferesPorVehiculo((actual) => {
+        if (actual[vehiculoId]) return actual;
+        const usado = vehiculosSeleccionados.some(
+          (id) => actual[id] === habitual.id,
+        );
+        return usado
+          ? actual
+          : { ...actual, [vehiculoId]: habitual.id };
+      });
+    }
 
     setVehiculosSeleccionados(
       (actuales) => {
@@ -523,6 +719,21 @@ export default function SalidasRapidas() {
       return;
     }
 
+    const asignacionesChoferes = vehiculosSeleccionados.map((vehiculoId) => ({
+      vehiculoId,
+      choferId: choferesPorVehiculo[vehiculoId] || "",
+    }));
+    if (asignacionesChoferes.some((asignacion) => !asignacion.choferId)) {
+      setMensaje("Selecciona un chofer para cada vehículo antes de habilitar la fila.");
+      setEsError(true);
+      return;
+    }
+    if (new Set(asignacionesChoferes.map((asignacion) => asignacion.choferId)).size !== asignacionesChoferes.length) {
+      setMensaje("Un mismo chofer no puede conducir dos vehículos de la misma fila.");
+      setEsError(true);
+      return;
+    }
+
     try {
       setGuardando(true);
       setMensaje("");
@@ -536,6 +747,7 @@ export default function SalidasRapidas() {
             Number(precio),
           vehiculoIds:
             vehiculosSeleccionados,
+          asignacionesChoferes,
           habilitadoPor:
             usuario.id,
         });
@@ -596,6 +808,26 @@ export default function SalidasRapidas() {
         return;
       }
 
+      if (vehiculosSeleccionados.some((id) => !choferesPorVehiculo[id])) {
+        setMensaje("Debes seleccionar el chofer de cada vehículo que llega.");
+        setEsError(true);
+        return;
+      }
+      const asignados = vehiculosSeleccionados.map((id) => choferesPorVehiculo[id]);
+      if (new Set(asignados).size !== asignados.length) {
+        setMensaje("No puedes asignar el mismo chofer a dos vehículos de esta llegada.");
+        setEsError(true);
+        return;
+      }
+      const ocupados = new Set(fila.filter((turno) => turno.activo &&
+        !["FINALIZADO", "CANCELADO"].includes(turno.estado))
+        .map((turno) => turno.chofer?.id).filter(Boolean));
+      if (asignados.some((id) => ocupados.has(id))) {
+        setMensaje("Uno de los choferes ya tiene otro turno activo en esta fila.");
+        setEsError(true);
+        return;
+      }
+
       try {
         setAgregandoVehiculos(true);
         setMensaje("");
@@ -606,6 +838,7 @@ export default function SalidasRapidas() {
             rutaId,
             fecha,
             vehiculoId,
+            choferId: choferesPorVehiculo[vehiculoId],
             intervaloMinutos,
             administradorId:
               usuario.id,
@@ -1299,6 +1532,23 @@ export default function SalidasRapidas() {
               </span>
             </div>
 
+            <label className="mb-4 block">
+              <span className="text-sm font-black text-slate-700">Buscar por placa</span>
+              <input
+                type="search"
+                value={busquedaPlaca}
+                onChange={(evento) => setBusquedaPlaca(evento.target.value)}
+                placeholder="Escribe la placa del Noah o Hiace"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none focus:border-emerald-500"
+              />
+            </label>
+            {errorChoferes && (
+              <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+                No se pudieron cargar los choferes: {errorChoferes}
+                <button type="button" onClick={() => void cargarChoferes()} className="ml-2 underline">Reintentar</button>
+              </p>
+            )}
+
             {vehiculosParaSeleccionar.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
                 No existen vehículos Noah o Hiace activos.
@@ -1399,6 +1649,22 @@ export default function SalidasRapidas() {
                           <p className="text-sm text-slate-500">
                             {vehiculo.capacidad} asientos
                           </p>
+                          <label className="mt-3 block text-sm font-bold text-slate-700">
+                            Chofer de esta salida
+                            <select
+                              value={choferesPorVehiculo[vehiculo.id] || ""}
+                              onChange={(evento) => setChoferesPorVehiculo((actual) => ({...actual, [vehiculo.id]: evento.target.value}))}
+                              disabled={cargandoChoferes}
+                              className="mt-1 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                            >
+                              <option value="">Seleccionar chofer...</option>
+                              {choferes.map((chofer) => (
+                                <option key={chofer.id} value={chofer.id}>
+                                  {chofer.nombre} {chofer.apellido}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
                           <p className="mt-1 text-xs font-black text-emerald-700">
                             {indice === 0
@@ -1513,6 +1779,23 @@ export default function SalidasRapidas() {
               </span>
             </div>
 
+            <label className="mb-4 block">
+              <span className="text-sm font-black text-slate-700">Buscar por placa</span>
+              <input
+                type="search"
+                value={busquedaPlaca}
+                onChange={(evento) => setBusquedaPlaca(evento.target.value)}
+                placeholder="Escribe la placa del Noah o Hiace"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none focus:border-emerald-500"
+              />
+            </label>
+            {errorChoferes && (
+              <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+                No se pudieron cargar los choferes: {errorChoferes}
+                <button type="button" onClick={() => void cargarChoferes()} className="ml-2 underline">Reintentar</button>
+              </p>
+            )}
+
             {vehiculosParaSeleccionar.length === 0 ? (
               <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-slate-500">
                 Todos los vehículos disponibles ya pertenecen a esta fila.
@@ -1569,6 +1852,27 @@ export default function SalidasRapidas() {
                     );
                   },
                 )}
+              </div>
+            )}
+
+            {vehiculosSeleccionados.length > 0 && (
+              <div className="mt-5 space-y-3">
+                {seleccionados.map((vehiculo) => (
+                  <label key={vehiculo.id} className="block rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-bold text-slate-700">
+                    {vehiculo.tipo} · Placa {vehiculo.placa} — Chofer que llega
+                    <select
+                      value={choferesPorVehiculo[vehiculo.id] || ""}
+                      onChange={(evento) => setChoferesPorVehiculo((actual) => ({...actual, [vehiculo.id]: evento.target.value}))}
+                      disabled={cargandoChoferes}
+                      className="mt-2 block w-full rounded-xl border border-slate-200 bg-white px-3 py-3"
+                    >
+                      <option value="">Seleccionar chofer...</option>
+                      {choferes.map((chofer) => (
+                        <option key={chofer.id} value={chofer.id}>{chofer.nombre} {chofer.apellido}</option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
               </div>
             )}
 
@@ -1640,6 +1944,9 @@ export default function SalidasRapidas() {
 
                       <p className="mt-1 text-sm font-bold text-slate-500">
                         Estado: {turno.estado}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-600">
+                        Chofer: {turno.chofer ? `${turno.chofer.nombre} ${turno.chofer.apellido}` : "Sin asignar"}
                       </p>
 
                       <p className="mt-1 flex items-center gap-1.5 text-sm font-black text-emerald-700">
@@ -1723,6 +2030,25 @@ export default function SalidasRapidas() {
 
                       Autorizar salida
                     </button>
+                  )}
+                </div>
+
+                {/* Recojos asociados a este viaje / vehículo */}
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setViajeRecojosAbierto((actual) => actual === turno.viaje.id ? null : turno.viaje.id)}
+                    className="flex w-full items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-left text-sm font-black text-emerald-800 hover:bg-emerald-50 sm:w-auto"
+                    aria-expanded={viajeRecojosAbierto === turno.viaje.id}
+                  >
+                    <span className="flex items-center gap-2"><MapPin size={18} /> Solicitudes de recojo</span>
+                    {viajeRecojosAbierto === turno.viaje.id ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                  </button>
+                  {viajeRecojosAbierto === turno.viaje.id && usuario.id && (
+                    <RecojosPorViaje
+                      viajeId={turno.viaje.id}
+                      administradorId={usuario.id}
+                    />
                   )}
                 </div>
 

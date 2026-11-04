@@ -1,3 +1,4 @@
+
 import {
   Type,
 } from "class-transformer";
@@ -8,9 +9,11 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from "class-validator";
 
 import {
@@ -20,8 +23,7 @@ import {
 export class UpdateVehiculoDto {
   @IsOptional()
   @IsString({
-    message:
-      "La placa debe ser texto.",
+    message: "La placa debe ser texto.",
   })
   @MaxLength(20, {
     message:
@@ -42,8 +44,7 @@ export class UpdateVehiculoDto {
 
   @IsOptional()
   @IsString({
-    message:
-      "La marca debe ser texto.",
+    message: "La marca debe ser texto.",
   })
   @MaxLength(100, {
     message:
@@ -53,8 +54,7 @@ export class UpdateVehiculoDto {
 
   @IsOptional()
   @IsString({
-    message:
-      "El modelo debe ser texto.",
+    message: "El modelo debe ser texto.",
   })
   @MaxLength(100, {
     message:
@@ -63,19 +63,40 @@ export class UpdateVehiculoDto {
   modelo?: string;
 
   @IsOptional()
-  @IsEnum(
-    TipoVehiculo,
-    {
-      message:
-        "El tipo debe ser FLOTA, NOAH o HIACE.",
-    },
-  )
+  @IsEnum(TipoVehiculo, {
+    message:
+      "El tipo debe ser FLOTA, NOAH o HIACE.",
+  })
   tipo?: TipoVehiculo;
 
   /**
-   * Se acepta por compatibilidad, pero
-   * VehiculosService recalcula la capacidad
-   * según el tipo seleccionado.
+   * Chofer habitual del vehículo.
+   *
+   * undefined = no modificar la asignación.
+   * UUID = asignar o cambiar el chofer.
+   * null = quitar el chofer habitual.
+   *
+   * El servicio debe validar el rol CHOFER
+   * y comprobar que su cuenta esté activa.
+   */
+  @ValidateIf(
+    (_objeto, valor) =>
+      valor !== undefined &&
+      valor !== null,
+  )
+  @IsUUID("4", {
+    message:
+      "El identificador del chofer habitual no es válido.",
+  })
+  choferId?: string | null;
+
+  /**
+   * Se conserva por compatibilidad.
+   * La capacidad se calcula por tipo:
+   *
+   * FLOTA = 40
+   * NOAH = 7
+   * HIACE = 10
    */
   @IsOptional()
   @Type(() => Number)
@@ -83,8 +104,14 @@ export class UpdateVehiculoDto {
     message:
       "La capacidad debe ser un número entero.",
   })
-  @Min(1)
-  @Max(40)
+  @Min(1, {
+    message:
+      "La capacidad debe ser mayor que cero.",
+  })
+  @Max(40, {
+    message:
+      "La capacidad no puede superar los 40 asientos.",
+  })
   capacidad?: number;
 
   @IsOptional()
