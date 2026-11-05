@@ -1,9 +1,12 @@
+
 import {
   useCallback,
   useState,
 } from "react";
 
-import { useNavigate } from "react-router-dom";
+import {
+  useNavigate,
+} from "react-router-dom";
 
 import type {
   ModoOperacion,
@@ -33,52 +36,63 @@ import usePagoCompra from "./usePagoCompra";
 function useCompraReservar() {
   const navigate = useNavigate();
 
-  const usuario =
-    obtenerUsuarioLocal();
+  const usuario = obtenerUsuarioLocal();
 
-  const [paso, setPaso] =
-    useState(1);
+  const [paso, setPaso] = useState(1);
 
   const [
     modoOperacion,
     setModoOperacion,
-  ] =
-    useState<ModoOperacion>(
-      "COMPRA",
-    );
+  ] = useState<ModoOperacion>("COMPRA");
 
-  const [mensaje, setMensaje] =
-    useState("");
+  const [mensaje, setMensaje] = useState("");
 
-  const [exito, setExito] =
-    useState(false);
+  const [exito, setExito] = useState(false);
 
   const [
     reservando,
     setReservando,
   ] = useState(false);
 
-  const mostrarMensaje =
-    useCallback(
-      (
-        texto = "",
-        esExito = false,
-      ) => {
-        setMensaje(texto);
-        setExito(esExito);
-      },
-      [],
-    );
+  /**
+   * MOSTRAR MENSAJES
+   *
+   * Permite informar al pasajero
+   * sobre compras, reservas,
+   * errores y operaciones exitosas.
+   */
+  const mostrarMensaje = useCallback(
+    (
+      texto = "",
+      esExito = false,
+    ) => {
+      setMensaje(texto);
+      setExito(esExito);
+    },
+    [],
+  );
 
-  const compraViaje =
-    useCompraViaje({
-      bloqueado: false,
+  /**
+   * CONTROL DE VIAJE
+   *
+   * Mantiene la selección de:
+   * - Ruta
+   * - Fecha
+   * - Horario
+   * - Vehículo
+   * - Asientos
+   *
+   * La separación FLOTA / NOAH / HIACE
+   * se gestiona desde los servicios
+   * y componentes correspondientes.
+   */
+  const compraViaje = useCompraViaje({
+    bloqueado: false,
 
-      onCambiarPaso: setPaso,
+    onCambiarPaso: setPaso,
 
-      onMensaje:
-        mostrarMensaje,
-    });
+    onMensaje: mostrarMensaje,
+  });
 
   const {
     viaje,
@@ -87,275 +101,328 @@ function useCompraReservar() {
     total,
   } = compraViaje;
 
-  /*
-   * IMPORTANTE:
-   * Se pasa directamente la función importada.
-   * De esta manera mantiene la misma referencia
-   * y no reinicia la consulta automática del pago
-   * en cada renderizado.
+  /**
+   * CONTROL DE PAGO
+   *
+   * Gestiona:
+   * - Pago mediante QR
+   * - Envío de comprobante
+   * - Aprobación y rechazo
+   * - Ticket digital
+   *
+   * Se pasa directamente
+   * construirTicketAprobado para conservar
+   * una referencia estable.
    */
-  const pago =
-    usePagoCompra({
-      usuario,
+  const pago = usePagoCompra({
+    usuario,
 
-      viaje,
+    viaje,
 
-      fecha,
+    fecha,
 
-      asientosSeleccionados,
+    asientosSeleccionados,
 
-      total,
+    total,
 
-      bloqueadoExterno:
-        reservando,
+    bloqueadoExterno: reservando,
 
-      construirTicket:
-        construirTicketAprobado,
+    construirTicket: construirTicketAprobado,
 
-      onMensaje:
-        mostrarMensaje,
+    onMensaje: mostrarMensaje,
 
-      onCambiarPaso:
-        setPaso,
+    onCambiarPaso: setPaso,
 
-      onBloquearAsientos:
-        compraViaje
-          .bloquearAsientos,
+    onBloquearAsientos:
+      compraViaje.bloquearAsientos,
 
-      onRecargarAsientos:
-        compraViaje
-          .recargarAsientos,
+    onRecargarAsientos:
+      compraViaje.recargarAsientos,
 
-      onSeleccionInvalida:
-        compraViaje
-          .setAsientosSeleccionados,
-    });
+    onSeleccionInvalida:
+      compraViaje.setAsientosSeleccionados,
+  });
 
+  /**
+   * BLOQUEAR OPERACIONES
+   *
+   * Impide iniciar otras operaciones
+   * mientras se procesa una reserva
+   * o un pago.
+   */
   const bloqueado =
-    reservando ||
-    pago.bloqueadoPago;
+    reservando || pago.bloqueadoPago;
 
+  /**
+   * DATOS DEL PASAJERO
+   */
   const pasajero =
-    formatearNombrePasajero(
-      usuario,
-    );
+    formatearNombrePasajero(usuario);
 
-  const cambiarModoOperacion =
-    useCallback(
-      (
-        valor: ModoOperacion,
-      ) => {
-        if (bloqueado) {
-          return;
-        }
+  /**
+   * CAMBIAR MODALIDAD
+   *
+   * COMPRA o RESERVA.
+   */
+  const cambiarModoOperacion = useCallback(
+    (valor: ModoOperacion) => {
+      if (bloqueado) {
+        return;
+      }
 
-        setModoOperacion(
-          valor,
+      if (valor === modoOperacion) {
+        return;
+      }
+
+      setModoOperacion(valor);
+
+      pago.setMostrarQR(false);
+
+      mostrarMensaje();
+    },
+    [
+      bloqueado,
+      modoOperacion,
+      mostrarMensaje,
+      pago.setMostrarQR,
+    ],
+  );
+
+  /**
+   * CONFIRMAR RESERVA TEMPORAL
+   *
+   * Utiliza el viaje seleccionado
+   * y los asientos bloqueados.
+   */
+  const confirmarReservaTemporal = useCallback(
+    async () => {
+      if (reservando || bloqueado) {
+        return;
+      }
+
+      if (
+        !usuario.id ||
+        !viaje?.id ||
+        compraViaje.cantidadAsientos === 0
+      ) {
+        mostrarMensaje(
+          "Selecciona el viaje y al menos un asiento.",
+        );
+        return;
+      }
+
+      const asientoIds = [
+        ...compraViaje.idsAsientosSeleccionados,
+      ];
+
+      if (
+        asientoIds.length === 0 ||
+        new Set(asientoIds).size !== asientoIds.length
+      ) {
+        mostrarMensaje(
+          "La selección de asientos no es válida.",
+        );
+        return;
+      }
+
+      setReservando(true);
+      mostrarMensaje();
+
+      try {
+        const respuesta =
+          await crearReservaPendiente({
+            usuarioId: usuario.id,
+
+            viajeId: viaje.id,
+
+            asientoIds,
+          });
+
+        mostrarMensaje(
+          respuesta.mensaje ||
+            "Reserva creada correctamente. Tienes 2 horas para realizar el pago.",
+          true,
         );
 
-        pago.setMostrarQR(
-          false,
+        navigate(
+          "/pasajero/mis-reservas",
+          {
+            replace: true,
+          },
         );
+      } catch (error: unknown) {
+        mostrarMensaje(
+          obtenerMensajeError(
+            error,
+            "No se pudo crear la reserva.",
+          ),
+        );
+      } finally {
+        setReservando(false);
+      }
+    },
+    [
+      reservando,
+      bloqueado,
+      usuario.id,
+      viaje?.id,
+      compraViaje.cantidadAsientos,
+      compraViaje.idsAsientosSeleccionados,
+      mostrarMensaje,
+      navigate,
+    ],
+  );
 
-        mostrarMensaje();
-      },
-      [
-        bloqueado,
-        mostrarMensaje,
-        pago.setMostrarQR,
-      ],
-    );
-
-  const confirmarReservaTemporal =
-    useCallback(
-      async () => {
-        if (
-          reservando ||
-          bloqueado
-        ) {
-          return;
-        }
-
-        if (
-          !usuario.id ||
-          !viaje?.id ||
-          !compraViaje
-            .cantidadAsientos
-        ) {
-          mostrarMensaje(
-            "Selecciona el viaje y al menos un asiento.",
-          );
-
-          return;
-        }
-
-        setReservando(true);
-
-        mostrarMensaje();
-
-        try {
-          const respuesta =
-            await crearReservaPendiente({
-              usuarioId:
-                usuario.id,
-
-              viajeId:
-                viaje.id,
-
-              asientoIds:
-                compraViaje
-                  .idsAsientosSeleccionados,
-            });
-
-          mostrarMensaje(
-            respuesta.mensaje ||
-              "Reserva creada correctamente. Tienes 2 horas para realizar el pago.",
-            true,
-          );
-
-          navigate(
-            "/pasajero/mis-reservas",
-            {
-              replace: true,
-            },
-          );
-        } catch (
-          error: unknown
-        ) {
-          mostrarMensaje(
-            obtenerMensajeError(
-              error,
-              "No se pudo crear la reserva.",
-            ),
-          );
-        } finally {
-          setReservando(false);
-        }
-      },
-      [
-        bloqueado,
-        compraViaje
-          .cantidadAsientos,
-        compraViaje
-          .idsAsientosSeleccionados,
-        mostrarMensaje,
-        navigate,
-        reservando,
-        usuario.id,
-        viaje?.id,
-      ],
-    );
-
-  const guardarTicket =
-    useCallback(() => {
-      const ticket =
-        pago.ticketAprobado;
+  /**
+   * GUARDAR TICKET DIGITAL
+   *
+   * Solamente permite guardar
+   * cuando existe un ticket aprobado.
+   */
+  const guardarTicket = useCallback(
+    () => {
+      const ticket = pago.ticketAprobado;
 
       if (!ticket) {
         mostrarMensaje(
           "El ticket todavía no está disponible.",
         );
-
         return;
       }
 
-      localStorage.setItem(
-        "ultimoTicket",
-        JSON.stringify(ticket),
-      );
+      try {
+        localStorage.setItem(
+          "ultimoTicket",
+          JSON.stringify(ticket),
+        );
 
-      mostrarMensaje(
-        "Ticket guardado correctamente en este dispositivo.",
-        true,
-      );
-    }, [
+        mostrarMensaje(
+          "Ticket guardado correctamente en este dispositivo.",
+          true,
+        );
+      } catch {
+        mostrarMensaje(
+          "No se pudo guardar el ticket en este dispositivo.",
+        );
+      }
+    },
+    [
       mostrarMensaje,
       pago.ticketAprobado,
-    ]);
+    ],
+  );
 
-  const descargarTicket =
-    useCallback(
-      async () => {
-        const ticket =
-          pago.ticketAprobado;
+  /**
+   * DESCARGAR TICKET
+   *
+   * Genera una imagen del ticket
+   * aprobado para el pasajero.
+   */
+  const descargarTicket = useCallback(
+    async () => {
+      const ticket = pago.ticketAprobado;
 
-        if (!ticket) {
-          mostrarMensaje(
-            "El ticket todavía no está disponible.",
+      if (!ticket) {
+        mostrarMensaje(
+          "El ticket todavía no está disponible.",
+        );
+        return;
+      }
+
+      try {
+        const archivo =
+          await crearImagenTicket(
+            ticket,
+            pasajero,
           );
 
-          return;
-        }
+        descargarArchivo(
+          archivo,
+          nombreArchivoTicket(ticket),
+        );
 
-        try {
-          const archivo =
-            await crearImagenTicket(
-              ticket,
-              pasajero,
-            );
+        mostrarMensaje(
+          "Ticket preparado para descargar.",
+          true,
+        );
+      } catch {
+        mostrarMensaje(
+          "No se pudo generar la imagen del ticket.",
+        );
+      }
+    },
+    [
+      mostrarMensaje,
+      pago.ticketAprobado,
+      pasajero,
+    ],
+  );
 
-          descargarArchivo(
-            archivo,
-            nombreArchivoTicket(
-              ticket,
-            ),
-          );
-        } catch {
-          mostrarMensaje(
-            "No se pudo generar la imagen del ticket.",
-          );
-        }
-      },
-      [
-        mostrarMensaje,
-        pago.ticketAprobado,
-        pasajero,
-      ],
-    );
+  /**
+   * COMPARTIR TICKET
+   *
+   * Conserva el mecanismo existente
+   * para compartir por WhatsApp
+   * o mediante las opciones del dispositivo.
+   */
+  const compartirPorWhatsApp = useCallback(
+    async () => {
+      const ticket = pago.ticketAprobado;
 
-  const compartirPorWhatsApp =
-    useCallback(
-      async () => {
-        const ticket =
-          pago.ticketAprobado;
+      if (!ticket) {
+        mostrarMensaje(
+          "El ticket todavía no está disponible.",
+        );
+        return;
+      }
 
-        if (!ticket) {
-          mostrarMensaje(
-            "El ticket todavía no está disponible.",
-          );
-
-          return;
-        }
-
+      try {
         await compartirTicket(
           ticket,
           pasajero,
         );
-      },
-      [
-        mostrarMensaje,
-        pago.ticketAprobado,
-        pasajero,
-      ],
-    );
+      } catch {
+        mostrarMensaje(
+          "No se pudo compartir el ticket.",
+        );
+      }
+    },
+    [
+      mostrarMensaje,
+      pago.ticketAprobado,
+      pasajero,
+    ],
+  );
 
-  const cerrarSesion =
-    useCallback(() => {
+  /**
+   * CERRAR SESIÓN
+   *
+   * Elimina los datos de sesión
+   * almacenados por el frontend.
+   */
+  const cerrarSesion = useCallback(
+    () => {
       [
         "token",
         "access_token",
         "usuario",
         "ultimoTicket",
-      ].forEach(
-        (clave) =>
-          localStorage.removeItem(
-            clave,
-          ),
-      );
+      ].forEach((clave) => {
+        localStorage.removeItem(clave);
+      });
 
       navigate("/");
-    }, [navigate]);
+    },
+    [navigate],
+  );
 
+  /**
+   * FUNCIONES Y ESTADOS
+   *
+   * Mantiene los nombres utilizados
+   * por ComprarReservar.tsx
+   * y los demás componentes.
+   */
   return {
     usuario,
     pasajero,
@@ -378,6 +445,7 @@ function useCompraReservar() {
     guardarTicket,
     descargarTicket,
     compartirPorWhatsApp,
+
     cerrarSesion,
 
     compraViaje,

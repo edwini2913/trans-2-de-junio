@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -28,6 +29,12 @@ interface PagoPendienteGuardado {
   pagoId: string;
   usuarioId: string;
   referencia: string;
+  contexto?: {
+    viaje: ViajePagoCompra | null;
+    fecha: string;
+    asientos: AsientoPagoCompra[];
+    total: number;
+  };
 }
 
 function leerPagoPendiente(
@@ -61,6 +68,7 @@ function leerPagoPendiente(
       pagoId: pago.pagoId,
       usuarioId: pago.usuarioId,
       referencia: pago.referencia ?? "",
+      contexto: pago.contexto,
     };
   } catch {
     localStorage.removeItem(
@@ -231,6 +239,24 @@ function usePagoCompra({
   const cantidadAsientos =
     asientosSeleccionados.length;
 
+  // Mantener la versión más reciente de los datos y callbacks sin
+  // reiniciar la consulta periódica en cada renderizado de React.
+  const contextoActualRef = useRef({
+    viaje, fecha, asientosSeleccionados, total,
+    construirTicket, onCambiarPaso, onRecargarAsientos, onMensaje,
+  });
+  contextoActualRef.current = {
+    viaje, fecha, asientosSeleccionados, total,
+    construirTicket, onCambiarPaso, onRecargarAsientos, onMensaje,
+  };
+
+  // El estado del pago puede sobrevivir a una recarga de la página.
+  // Guardar también los datos mínimos para representar el ticket.
+  const contextoPendienteRef = useRef(
+    pagoGuardado?.contexto ?? null,
+  );
+
+
   const mostrarMensaje = useCallback(
     (
       texto = "",
@@ -246,6 +272,7 @@ function usePagoCompra({
       localStorage.removeItem(
         CLAVE_PAGO_PENDIENTE,
       );
+      contextoPendienteRef.current = null;
 
       setMostrarQR(false);
       setConfirmando(false);
@@ -292,6 +319,9 @@ function usePagoCompra({
 
   const reintentarPago = useCallback(
     () => {
+      // No permitir que el seguimiento anterior reaparezca al recargar.
+      localStorage.removeItem(CLAVE_PAGO_PENDIENTE);
+      contextoPendienteRef.current = null;
       setPagoId("");
       setEstadoPago(null);
       setMotivoRechazo("");
@@ -452,6 +482,14 @@ function usePagoCompra({
         setCompraConfirmada(false);
         setPagoEnRevision(true);
 
+        const contexto = {
+          viaje,
+          fecha,
+          asientos: [...asientosSeleccionados],
+          total,
+        };
+        contextoPendienteRef.current = contexto;
+
         localStorage.setItem(
           CLAVE_PAGO_PENDIENTE,
           JSON.stringify({
@@ -461,6 +499,7 @@ function usePagoCompra({
             referencia:
               respuesta.pago.referencia ||
               datos.referencia,
+            contexto,
           } satisfies PagoPendienteGuardado),
         );
 
@@ -519,198 +558,127 @@ function usePagoCompra({
     ],
   );
 
-  /*
-   * Consulta automática del estado del
-   * comprobante cada cinco segundos.
+  /**
+   * Comprueba el estado del pago cada cinco segundos sin interrumpir
+   * el seguimiento durante actualizaciones visuales de React.
+   * Un pago APROBADO no significa que el ticket ya esté disponible:
+   * se confirma la compra solamente al obtener el ticket real.
    */
   useEffect(() => {
-    if (
-      !pagoId ||
-      !pagoEnRevision
-    ) {
-      return;
-    }
+    if (!pagoId || !pagoEnRevision) return;
 
-    let componenteActivo = true;
-    let consultaEnCurso = false;
+    let activo = true;
+    let consultando = false;
+    let ultimoError = "";
 
-    const consultarEstadoPago =
-      async () => {
-        if (consultaEnCurso) {
+    const consultar = async () => {
+      if (consultando || !activo) return;
+      consultando = true;
+
+      try {
+        const respuestaPago = await obtenerPagoPorId(pagoId);
+        if (!activo) return;
+
+        setEstadoPago(respuestaPago.estado);
+        setReferenciaPago((anterior) => respuestaPago.referencia || anterior);
+
+        if (respuestaPago.estado === "APROBADO") {
+          const reservaId = respuestaPago.reserva?.id;
+          if (!reservaId) {
+            throw new Error(
+              "Tu pago está aprobado, pero todavía no aparece la reserva asociada. Estamos esperando el ticket.",
+            );
+          }
+
+          let ticketBackend: TicketRespuesta;
+          try {
+            ticketBackend = await obtenerTicketPorReserva(reservaId);
+          } catch {
+            // Conservamos el endpoint existente por compatibilidad.
+            // La autorización para generar tickets debe verificarse
+            // en el backend; un pasajero no debe poder falsificar pagos.
+            ticketBackend = await generarTicketPorReserva(reservaId);
+          }
+          if (!activo) return;
+
+          const actual = contextoActualRef.current;
+          const guardado = contextoPendienteRef.current;
+          const datos = guardado ?? {
+            viaje: actual.viaje,
+            fecha: actual.fecha,
+            asientos: actual.asientosSeleccionados,
+            total: actual.total,
+          };
+
+          const ticket = actual.construirTicket({
+            ticketBackend,
+            viaje: datos.viaje,
+            fecha: datos.fecha,
+            asientos: datos.asientos,
+            total: datos.total,
+          });
+
+          if (!activo) return;
+          setTicketAprobado(ticket);
+          setCompraConfirmada(true);
+          setPagoEnRevision(false);
+          setMostrarQR(true);
+          actual.onCambiarPaso?.(5);
+          contextoPendienteRef.current = null;
+          try {
+            localStorage.setItem("ultimoTicket", JSON.stringify(ticket));
+            localStorage.removeItem(CLAVE_PAGO_PENDIENTE);
+          } catch {
+            // El ticket ya existe en memoria y puede descargarse.
+          }
+          actual.onMensaje?.("¡Pago aprobado! Tu ticket ya está disponible.", true);
           return;
         }
 
-        consultaEnCurso = true;
-
-        try {
-          const pago =
-            await obtenerPagoPorId(
-              pagoId,
-            );
-
-          if (!componenteActivo) {
-            return;
-          }
-
-          setEstadoPago(
-            pago.estado,
+        if (respuestaPago.estado === "RECHAZADO") {
+          setMotivoRechazo(
+            respuestaPago.observacionAdministrador?.trim() ||
+              "El comprobante no pudo ser validado. Revisa la referencia y vuelve a enviarlo.",
           );
-
-          setReferenciaPago(
-            (
-              referenciaAnterior,
-            ) =>
-              pago.referencia ||
-              referenciaAnterior,
-          );
-
-          if (
-            pago.estado ===
-            "APROBADO"
-          ) {
-            const reservaId =
-              pago.reserva?.id;
-
-            if (!reservaId) {
-              throw new Error(
-                "El pago fue aprobado, pero todavía no tiene una reserva asociada.",
-              );
-            }
-
-            let ticketBackend:
-              TicketRespuesta;
-
-            try {
-              ticketBackend =
-                await obtenerTicketPorReserva(
-                  reservaId,
-                );
-            } catch {
-              ticketBackend =
-                await generarTicketPorReserva(
-                  reservaId,
-                );
-            }
-
-            if (!componenteActivo) {
-              return;
-            }
-
-            const ticket =
-              construirTicket({
-                ticketBackend,
-                viaje,
-                fecha,
-                asientos:
-                  asientosSeleccionados,
-                total,
-              });
-
-            setTicketAprobado(
-              ticket,
-            );
-
-            setCompraConfirmada(
-              true,
-            );
-
-            setPagoEnRevision(
-              false,
-            );
-
-            onCambiarPaso?.(5);
-
-            localStorage.setItem(
-              "ultimoTicket",
-              JSON.stringify(ticket),
-            );
-
-            localStorage.removeItem(
-              CLAVE_PAGO_PENDIENTE,
-            );
-
-            mostrarMensaje(
-              "¡Pago aprobado! Tu ticket ya fue generado.",
-              true,
-            );
-
-            return;
+          setCompraConfirmada(false);
+          setPagoEnRevision(false);
+          contextoPendienteRef.current = null;
+          localStorage.removeItem(CLAVE_PAGO_PENDIENTE);
+          const actual = contextoActualRef.current;
+          actual.onCambiarPaso?.(4);
+          actual.onMensaje?.("El comprobante fue rechazado. Revisa el motivo indicado.");
+          if (actual.viaje?.id && actual.onRecargarAsientos) {
+            await actual.onRecargarAsientos(actual.viaje.id);
           }
-
-          if (
-            pago.estado ===
-            "RECHAZADO"
-          ) {
-            setMotivoRechazo(
-              pago.observacionAdministrador?.trim() ||
-                "El comprobante no pudo ser validado. Revisa la referencia y vuelve a enviarlo.",
-            );
-
-            setCompraConfirmada(
-              false,
-            );
-
-            setPagoEnRevision(
-              false,
-            );
-
-            localStorage.removeItem(
-              CLAVE_PAGO_PENDIENTE,
-            );
-
-            onCambiarPaso?.(4);
-
-            mostrarMensaje(
-              "El comprobante fue rechazado. Revisa el motivo indicado.",
-            );
-
-            if (
-              viaje?.id &&
-              onRecargarAsientos
-            ) {
-              await onRecargarAsientos(
-                viaje.id,
-              );
-            }
-          }
-        } catch {
-          /*
-           * Una falla temporal de Internet
-           * no cancela el seguimiento.
-           * Se reintentará en el siguiente
-           * intervalo.
-           */
-        } finally {
-          consultaEnCurso = false;
+          return;
         }
-      };
-
-    void consultarEstadoPago();
-
-    const intervalo =
-      window.setInterval(() => {
-        void consultarEstadoPago();
-      }, 5000);
-
-    return () => {
-      componenteActivo = false;
-
-      window.clearInterval(
-        intervalo,
-      );
+        ultimoError = "";
+      } catch (error: unknown) {
+        // No inventar una compra exitosa ni detener el seguimiento.
+        if (activo) {
+          const mensaje = error instanceof Error
+            ? error.message
+            : "No se pudo comprobar el ticket. Se volverá a consultar.";
+          if (mensaje !== ultimoError) {
+            contextoActualRef.current.onMensaje?.(
+              `Seguimiento de pago: ${mensaje}`,
+              false,
+            );
+            ultimoError = mensaje;
+          }
+        }
+      } finally {
+        consultando = false;
+      }
     };
-  }, [
-    asientosSeleccionados,
-    construirTicket,
-    fecha,
-    mostrarMensaje,
-    onCambiarPaso,
-    onRecargarAsientos,
-    pagoEnRevision,
-    pagoId,
-    total,
-    viaje,
-  ]);
+
+    void consultar();
+    const intervalo = window.setInterval(() => void consultar(), 5000);
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+    };
+  }, [pagoId, pagoEnRevision]);
 
   const bloqueadoPago =
     confirmando ||

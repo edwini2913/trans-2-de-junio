@@ -1,6 +1,7 @@
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -10,16 +11,21 @@ import {
   BusFront,
   CheckCircle2,
   Clock3,
+  IdCard,
+  UserRound,
   Users,
 } from "lucide-react";
 
 import type {
   HorarioDisponible,
   VehiculoDisponible,
+  SectorViaje,
 } from "../../services/viajes.service";
 
 interface HorariosSalidaProps {
   horarios: HorarioDisponible[];
+  /** El sector activo. Por compatibilidad, se usa FLOTA cuando se omite. */
+  sector?: SectorViaje;
   horarioSeleccionado: string;
   vehiculoSeleccionadoId?: string;
   cargando: boolean;
@@ -73,6 +79,7 @@ const estilo = (
 
 export default function HorariosSalida({
   horarios,
+  sector = "FLOTA",
   horarioSeleccionado,
   vehiculoSeleccionadoId,
   cargando,
@@ -85,7 +92,27 @@ export default function HorariosSalida({
     setHoraAbierta,
   ] = useState("");
 
-  const activo = horarios.find(
+  // Filtro defensivo: no mezclar flotas con Noah/Hiace aunque la API
+  // devuelva vehículos de diferentes sectores en un mismo horario.
+  const horariosDelSector = useMemo(() => {
+    return horarios
+      .map((horario) => {
+        const vehiculos = horario.vehiculos.filter((vehiculo) => {
+          const tipo = String(vehiculo.tipo ?? "").toUpperCase();
+          return sector === "FLOTA"
+            ? tipo === "FLOTA"
+            : tipo === "NOAH" || tipo === "HIACE";
+        });
+        return {
+          ...horario,
+          vehiculos,
+          cantidadVehiculos: vehiculos.length,
+        };
+      })
+      .filter((horario) => horario.vehiculos.length > 0);
+  }, [horarios, sector]);
+
+  const activo = horariosDelSector.find(
     (horario) =>
       horario.horaSalida ===
       horarioSeleccionado,
@@ -187,7 +214,7 @@ export default function HorariosSalida({
   useEffect(() => {
     if (
       horaAbierta &&
-      !horarios.some(
+      !horariosDelSector.some(
         (horario) =>
           horario.horaSalida ===
           horaAbierta,
@@ -196,7 +223,7 @@ export default function HorariosSalida({
       setHoraAbierta("");
     }
   }, [
-    horarios,
+    horariosDelSector,
     horaAbierta,
   ]);
 
@@ -299,7 +326,7 @@ export default function HorariosSalida({
     );
   }
 
-  if (!horarios.length) {
+  if (!horariosDelSector.length) {
     return (
       <div
         className={`${panel} mt-4`}
@@ -506,6 +533,13 @@ export default function HorariosSalida({
                     vehiculo.asientosDisponibles,
                   ) <= 0;
 
+                // El chofer asignado específicamente al viaje tiene prioridad.
+                // El habitual solamente sirve como respaldo informativo.
+                const chofer = vehiculo.chofer ?? vehiculo.choferHabitual ?? null;
+                const nombreChofer = chofer
+                  ? `${chofer.nombre} ${chofer.apellido}`.trim()
+                  : "Pendiente de asignación";
+
                 const nombreVehiculo =
                   `${tipos[vehiculo.tipo] ??
                     vehiculo.tipo} · ${
@@ -563,6 +597,27 @@ export default function HorariosSalida({
                           className="shrink-0 text-emerald-700"
                         />
                       )}
+                    </div>
+
+                    {/* DATOS DEL CHOFER ANTES DE ELEGIR ASIENTO */}
+                    <div className="mt-3 min-w-0 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <UserRound size={17} className="mt-0.5 shrink-0 text-emerald-700" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                            Chofer {vehiculo.chofer ? "asignado" : vehiculo.choferHabitual ? "habitual" : ""}
+                          </span>
+                          <strong className="mt-0.5 block break-words text-sm font-bold text-slate-900">
+                            {nombreChofer}
+                          </strong>
+                          {chofer?.codigo && (
+                            <span className="mt-1 flex items-center gap-1 break-all text-xs font-semibold text-slate-600">
+                              <IdCard size={14} className="shrink-0" />
+                              Código: {chofer.codigo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="mt-3 grid grid-cols-2 gap-2">

@@ -6,11 +6,64 @@ import type {
   TicketRespuesta,
 } from "../../services/tickets.service";
 
+export type ChoferDatosTicket = {
+  id?: string;
+  nombre?: string;
+  apellido?: string;
+  codigo?: string | number | null;
+  codigoChofer?: string | number | null;
+};
+
+export type TicketCompraConChofer = TicketPagoAprobado & {
+  chofer?: ChoferDatosTicket | null;
+  choferEsHabitual?: boolean;
+  placaVehiculo?: string;
+  tipoVehiculo?: string;
+  numeroFlota?: string | null;
+};
+
+/** Lee solo los campos necesarios, sin depender de DTO adicionales. */
+function comoRegistro(valor: unknown): Record<string, unknown> {
+  return valor && typeof valor === "object" && !Array.isArray(valor)
+    ? valor as Record<string, unknown>
+    : {};
+}
+
+function obtenerChofer(valor: unknown): ChoferDatosTicket | null {
+  const dato = comoRegistro(valor);
+  if (!dato.nombre && !dato.apellido) return null;
+  return {
+    id: typeof dato.id === "string" ? dato.id : undefined,
+    nombre: typeof dato.nombre === "string" ? dato.nombre : undefined,
+    apellido: typeof dato.apellido === "string" ? dato.apellido : undefined,
+    codigo: typeof dato.codigo === "string" || typeof dato.codigo === "number"
+      ? dato.codigo : null,
+    codigoChofer: typeof dato.codigoChofer === "string" || typeof dato.codigoChofer === "number"
+      ? dato.codigoChofer : null,
+  };
+}
+
+function datosConductor(ticket: TicketPagoAprobado): TicketCompraConChofer {
+  return ticket as TicketCompraConChofer;
+}
+
+function detalleChofer(ticket: TicketPagoAprobado): string {
+  const datos = datosConductor(ticket);
+  const chofer = datos.chofer;
+  const nombre = [chofer?.nombre, chofer?.apellido].filter(Boolean).join(" ").trim();
+  if (!nombre) return "Por confirmar";
+  const codigo = chofer?.codigoChofer ?? chofer?.codigo;
+  const identificador = codigo !== undefined && codigo !== null && String(codigo).trim()
+    ? ` · Código: ${String(codigo)}` : "";
+  return `${nombre}${datos.choferEsHabitual ? " (habitual)" : ""}${identificador}`;
+}
+
 export type ViajeTicketCompra = {
   id: string;
   fecha?: string;
   horaSalida?: string;
   precio?: number | string;
+  chofer?: ChoferDatosTicket | null;
 
   ruta?: {
     id?: string;
@@ -25,6 +78,8 @@ export type ViajeTicketCompra = {
     placa?: string;
     capacidad?: number;
     tipo?: string;
+    numeroFlota?: string | null;
+    choferHabitual?: ChoferDatosTicket | null;
   };
 };
 
@@ -48,7 +103,20 @@ export function construirTicketAprobado({
   fecha,
   asientos,
   total,
-}: ConstruirTicketParametros): TicketPagoAprobado {
+}: ConstruirTicketParametros): TicketCompraConChofer {
+  const datosBackend = comoRegistro(ticketBackend);
+  const reservaBackend = comoRegistro(datosBackend.reserva);
+  const viajeBackend = comoRegistro(reservaBackend.viaje);
+  const vehiculoBackend = comoRegistro(viajeBackend.vehiculo);
+  const choferAsignado = obtenerChofer(viajeBackend.chofer) ||
+    obtenerChofer(datosBackend.chofer) || obtenerChofer(viaje?.chofer);
+  const choferHabitual = obtenerChofer(vehiculoBackend.choferHabitual) ||
+    obtenerChofer(viaje?.vehiculo?.choferHabitual);
+  const chofer = choferAsignado || choferHabitual;
+  const placaVehiculo = String(vehiculoBackend.placa || viaje?.vehiculo?.placa || "");
+  const tipoVehiculo = String(vehiculoBackend.tipo || viaje?.vehiculo?.tipo || "");
+  const numeroFlota = vehiculoBackend.numeroFlota ?? viaje?.vehiculo?.numeroFlota;
+
   const numerosAsientos =
     ticketBackend.asientoNumeros.length > 0
       ? ticketBackend.asientoNumeros
@@ -108,6 +176,13 @@ export function construirTicketAprobado({
       : total,
 
     imagenQr: ticketBackend.imagenQr,
+
+    // Solo se agregan datos informativos; no se cambia el código QR.
+    chofer,
+    choferEsHabitual: !choferAsignado && Boolean(choferHabitual),
+    placaVehiculo,
+    tipoVehiculo,
+    numeroFlota: numeroFlota != null ? String(numeroFlota) : null,
   };
 }
 
@@ -168,6 +243,11 @@ export function construirTextoTicket(
     }`,
 
     `Asientos: ${asientos}`,
+
+    `Chofer: ${detalleChofer(ticket)}`,
+
+    `Vehículo: ${[datosConductor(ticket).tipoVehiculo, datosConductor(ticket).placaVehiculo]
+      .filter(Boolean).join(" · ") || "Por confirmar"}`,
 
     `Total: Bs. ${Number(
       ticket.total || 0,
@@ -366,6 +446,26 @@ export async function crearImagenTicket(
         330,
       );
     },
+  );
+
+  // Franja inferior con conductor y vehículo; conserva el ticket original.
+  const datosChofer = datosConductor(ticket);
+  contexto.fillStyle = "#d1fae5";
+  contexto.fillRect(55, 610, 1075, 50);
+  contexto.fillStyle = "#065f46";
+  contexto.font = "700 18px Arial";
+  contexto.fillText("CHOFER", 70, 630);
+  contexto.fillStyle = "#0f172a";
+  contexto.font = "700 17px Arial";
+  contexto.fillText(detalleChofer(ticket), 70, 651, 600);
+  contexto.fillStyle = "#065f46";
+  contexto.font = "700 18px Arial";
+  contexto.fillText("VEHÍCULO", 730, 630);
+  contexto.fillStyle = "#0f172a";
+  contexto.font = "700 17px Arial";
+  contexto.fillText(
+    [datosChofer.tipoVehiculo, datosChofer.placaVehiculo].filter(Boolean).join(" · ") || "Por confirmar",
+    730, 651, 380,
   );
 
   contexto.fillStyle = "#ffffff";

@@ -8,6 +8,9 @@ import {
   Armchair,
   ArrowRight,
   BusFront,
+  CarFront,
+  UserRound,
+  Zap,
   CalendarDays,
   Clock,
   Home,
@@ -547,7 +550,9 @@ function obtenerViajesVigentes(viajes: Viaje[]): Viaje[] {
       return (
         Number.isFinite(fechaHora) &&
         fechaHora >= ahora &&
-        estado === "PROGRAMADO"
+        estado === "PROGRAMADO" &&
+        viaje.vehiculo?.estado !== false &&
+        viaje.asientosDisponibles > 0
       );
     })
     .sort(
@@ -571,6 +576,11 @@ function obtenerIdentificadorFlota(viaje: Viaje): string {
   return `Placa ${vehiculo.placa || "sin registrar"}`;
 }
 
+/**
+ * Salidas separadas por tipo de servicio.
+ * Nunca se clasifica por nombre del chofer ni por la ruta:
+ * un mismo chofer puede trabajar en vehículos distintos.
+ */
 function SeccionRutas({
   viajes,
   cargando,
@@ -584,69 +594,130 @@ function SeccionRutas({
 }) {
   const viajesVigentes = obtenerViajesVigentes(viajes);
 
+  const salidasFlotas = viajesVigentes.filter(
+    (viaje) => String(viaje.vehiculo?.tipo ?? "").trim().toUpperCase() === "FLOTA",
+  );
+
+  const salidasRapidas = viajesVigentes.filter((viaje) => {
+    const tipo = String(viaje.vehiculo?.tipo ?? "").trim().toUpperCase();
+    return tipo === "NOAH" || tipo === "HIACE";
+  });
+
   return (
-    <section className="mt-8 sm:mt-12">
-      <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <span className="text-sm font-black uppercase tracking-[0.2em] text-emerald-600">
-            Próximos viajes
+    <section className="mt-8 min-w-0 sm:mt-12" aria-labelledby="titulo-salidas">
+      <div className="mb-6 flex min-w-0 flex-col gap-4 sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <span className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600 sm:text-sm sm:tracking-[0.2em]">
+            Salidas del sistema
           </span>
-          <h3 className="mt-2 text-2xl font-black leading-tight text-slate-900 sm:text-3xl">
-            Rutas y próximas salidas
+          <h3 id="titulo-salidas" className="mt-2 break-words text-2xl font-black leading-tight text-slate-900 sm:text-3xl">
+            Salidas disponibles
           </h3>
-          <p className="mt-2 text-slate-500">
-            Encuentra tu próximo viaje y reserva tus asientos.
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 sm:text-base">
+            Elige entre Flotas o Noah y Hiace. Consulta el chofer y continúa a comprar tu pasaje.
           </p>
         </div>
-
         <button
           type="button"
           onClick={() => void onActualizar()}
           disabled={cargando}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:rounded-2xl sm:px-5"
+          className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 self-start rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:rounded-2xl sm:px-5"
         >
-          <RefreshCw
-            size={18}
-            className={
-              cargando
-                ? "animate-spin"
-                : ""
-            }
-          />
+          <RefreshCw size={18} className={cargando ? "animate-spin" : ""} />
           Actualizar viajes
         </button>
       </div>
 
       {error && (
-        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+        <div role="alert" className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm font-bold text-red-700 sm:px-5">
           {error}
         </div>
       )}
 
       {cargando ? (
         <EstadoRutas
-          icono={
-            <RefreshCw
-              size={32}
-              className="animate-spin"
-            />
-          }
+          icono={<RefreshCw size={32} className="animate-spin" />}
           titulo="Cargando viajes publicados"
           descripcion="Estamos consultando las próximas rutas y horarios disponibles."
         />
-      ) : viajesVigentes.length === 0 ? (
-        <EstadoRutas
-          icono={<BusFront size={32} />}
-          titulo="No hay viajes programados"
-          descripcion="Cuando la administradora programe una ruta, sus fechas y horarios se mostrarán automáticamente en esta sección."
-        />
       ) : (
-        <div className="grid min-w-0 items-stretch gap-3 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {viajesVigentes.map((viaje) => (
-            <TarjetaViajePublicado
-              key={viaje.id}
-              viaje={viaje}
-            />
+        <div className="grid min-w-0 grid-cols-1 items-start gap-4 sm:gap-5 lg:grid-cols-2 lg:gap-6">
+          <PanelSectorSalidas
+            titulo="Flotas"
+            subtitulo="Viajes programados"
+            descripcion="Horarios y asientos asignados."
+            ayuda="Salidas del sector Flotas, listas para elegir."
+            sector="FLOTA"
+            viajes={salidasFlotas}
+            icono={<BusFront size={28} />}
+          />
+          <PanelSectorSalidas
+            titulo="Noah y Hiace"
+            subtitulo="Salidas rápidas"
+            descripcion="Vehículos de 7 y 10 pasajeros."
+            ayuda="Salidas del sector Noah y Hiace, sin mezclar flotas."
+            sector="RAPIDO"
+            viajes={salidasRapidas}
+            icono={<CarFront size={28} />}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PanelSectorSalidas({
+  titulo,
+  subtitulo,
+  descripcion,
+  ayuda,
+  sector,
+  viajes,
+  icono,
+}: {
+  titulo: string;
+  subtitulo: string;
+  descripcion: string;
+  ayuda: string;
+  sector: "FLOTA" | "RAPIDO";
+  viajes: Viaje[];
+  icono: ReactNode;
+}) {
+  return (
+    <section className="min-w-0 overflow-hidden rounded-[24px] border border-emerald-200 bg-white/90 p-2.5 shadow-lg shadow-emerald-900/5 min-[375px]:p-3 sm:rounded-[28px] sm:p-4 xl:p-5">
+      <div className="relative min-w-0 overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-50 via-white to-lime-50 px-3 py-4 sm:px-5 sm:py-5">
+        <div className="relative flex min-w-0 items-start gap-3 sm:gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-900 text-white shadow-md sm:h-14 sm:w-14 sm:rounded-2xl">
+            {icono}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h4 className="break-words text-xl font-black leading-tight text-slate-950 sm:text-2xl">{titulo}</h4>
+            <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-black text-emerald-800 sm:px-3">
+              {sector === "FLOTA" ? <CalendarDays size={14} /> : <Zap size={14} />}
+              {subtitulo}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-600 sm:text-sm">{descripcion}</p>
+          </div>
+          <span className="shrink-0 rounded-full border border-emerald-200 bg-white/90 px-2.5 py-1 text-xs font-black text-emerald-800" title="Salidas disponibles">
+            {viajes.length}
+          </span>
+        </div>
+      </div>
+
+      <p className="my-3 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-semibold leading-5 text-emerald-900 sm:text-sm">
+        {ayuda}
+      </p>
+
+      {viajes.length === 0 ? (
+        <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-white px-4 py-7 text-center">
+          <span className="text-emerald-600">{icono}</span>
+          <p className="mt-3 text-sm font-black text-slate-900">No hay salidas disponibles en {titulo}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Prueba con otra fecha o vuelve a actualizar las salidas.</p>
+        </div>
+      ) : (
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4">
+          {viajes.map((viaje) => (
+            <TarjetaViajePublicado key={viaje.id} viaje={viaje} sector={sector} />
           ))}
         </div>
       )}
@@ -680,72 +751,130 @@ function EstadoRutas({
   );
 }
 
-function TarjetaViajePublicado({ viaje }: { viaje: Viaje }) {
+/**
+ * Los nombres se extraen del viaje y vehículo reales.
+ * No se muestran datos inventados del conductor.
+ */
+function obtenerDatosChofer(viaje: Viaje): {
+  nombre: string;
+  codigo: string | null;
+  habitual: boolean;
+} {
+  const asignado = viaje.chofer;
+  const habitual = viaje.vehiculo?.choferHabitual;
+  const chofer = asignado ?? habitual;
+  if (!chofer) {
+    return { nombre: "Por confirmar", codigo: null, habitual: false };
+  }
+  const nombre = [chofer.nombre, chofer.apellido].filter(Boolean).join(" ").trim();
+  const datos = chofer as typeof chofer & {
+    codigoChofer?: string | number | null;
+  };
+  const codigo = datos.codigo ?? datos.codigoChofer;
+  return {
+    nombre: nombre || "Por confirmar",
+    codigo: codigo == null || String(codigo).trim() === "" ? null : String(codigo),
+    habitual: !asignado && Boolean(habitual),
+  };
+}
+
+function TarjetaViajePublicado({
+  viaje,
+  sector,
+}: {
+  viaje: Viaje;
+  sector: "FLOTA" | "RAPIDO";
+}) {
   const pocosAsientos = viaje.asientosDisponibles <= 8;
+  const chofer = obtenerDatosChofer(viaje);
+  const esFlota = sector === "FLOTA";
+  const identificacionVehiculo = esFlota
+    ? obtenerIdentificadorFlota(viaje)
+    : `${viaje.vehiculo.tipo === "HIACE" ? "Toyota Hiace" : "Toyota Noah"} · ${viaje.vehiculo.placa || "Sin placa"}`;
+
+  // Se pasan los identificadores reales para abrir directamente esta salida.
+  // ComprarReservar.tsx debe leer location.state para preseleccionarla.
+  const seleccionCompra = {
+    sector,
+    rutaId: viaje.ruta.id,
+    fecha: viaje.fecha.substring(0, 10),
+    horaSalida: viaje.horaSalida,
+    viajeId: viaje.id,
+    vehiculoId: viaje.vehiculo.id,
+  };
+
+  // Conservar la selección también en la URL para que no se pierda
+  // al actualizar la página, al abrir el enlace o al usar la PWA.
+  const destinoCompra = {
+    pathname: "/pasajero/comprar-reservar",
+    search: `?${new URLSearchParams(seleccionCompra).toString()}`,
+  };
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-[26px] border border-emerald-100 bg-white shadow-lg shadow-emerald-900/5 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-900/10">
-      <div className="relative min-w-0 overflow-hidden border-b border-emerald-100 bg-gradient-to-br from-white via-white to-emerald-50 p-3.5 min-[375px]:p-4 sm:p-6">
-        <div className="pointer-events-none absolute -right-14 -top-16 h-40 w-40 rounded-full border-[24px] border-emerald-100/70" />
-
-        <div className="relative flex min-w-0 items-start gap-2.5 sm:gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-900 text-white shadow-lg shadow-emerald-800/20 sm:h-16 sm:w-16 sm:rounded-2xl">
-            <BusFront size={25} className="sm:h-[31px] sm:w-[31px]" />
+    <article className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-900/5 transition duration-200 hover:border-emerald-300 hover:shadow-lg sm:rounded-[22px]">
+      <div className="min-w-0 p-3 min-[375px]:p-4 sm:p-5">
+        <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-900 text-white shadow-sm sm:h-12 sm:w-12">
+            {esFlota ? <BusFront size={23} /> : <CarFront size={23} />}
           </div>
-
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">
-              Próxima salida
+            <p className="text-[10px] font-black uppercase tracking-[0.13em] text-emerald-600">
+              {esFlota ? "Próxima salida · Flota" : "Salida rápida · Noah/Hiace"}
             </p>
-            <h4 className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5 break-words text-base font-black leading-tight text-slate-950 min-[375px]:text-lg sm:gap-2 sm:text-xl">
+            <h5 className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 break-words text-sm font-black leading-snug text-slate-950 min-[375px]:text-base sm:text-lg">
               <span>{viaje.ruta.origen}</span>
-              <ArrowRight size={17} className="shrink-0 text-emerald-500" />
+              <ArrowRight size={16} className="shrink-0 text-emerald-500" />
               <span>{viaje.ruta.destino}</span>
-            </h4>
+            </h5>
+            <p className="mt-1.5 break-words text-[11px] font-bold text-emerald-700 sm:text-xs">
+              {identificacionVehiculo}
+            </p>
+          </div>
+          <span className="max-w-[38%] shrink-0 rounded-xl bg-emerald-50 px-2 py-1.5 text-right text-xs font-black tabular-nums text-emerald-900 sm:px-3 sm:text-sm">
+            Bs. {Number(viaje.precio || 0).toFixed(2)}
+          </span>
+        </div>
 
-            <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800">
-              <BusFront size={15} />
-              {obtenerIdentificadorFlota(viaje)}
-            </span>
+        <div className="mt-3 flex min-w-0 items-start gap-2 rounded-xl border border-emerald-200 bg-gradient-to-r from-lime-50 via-emerald-50 to-lime-50 px-3 py-2.5">
+          <UserRound size={20} className="mt-0.5 shrink-0 text-emerald-700" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700 sm:text-xs">
+              {chofer.habitual ? "Chofer habitual" : "Chofer del viaje"}
+            </p>
+            <p className="break-words text-base font-black leading-snug text-emerald-950 min-[375px]:text-lg sm:text-xl">
+              {chofer.nombre}
+            </p>
+            {chofer.codigo && (
+              <p className="mt-1 text-xs font-semibold text-emerald-700">Código: {chofer.codigo}</p>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col p-3.5 min-[375px]:p-4 sm:p-6">
-        <div className="grid min-w-0 grid-cols-2 gap-2 min-[375px]:gap-3">
-          <DatoViaje
-            icono={<CalendarDays size={20} />}
-            etiqueta="Fecha"
-            valor={formatearFechaViaje(viaje.fecha)}
-          />
-          <DatoViaje
-            icono={<Clock size={20} />}
-            etiqueta="Hora"
-            valor={viaje.horaSalida}
-          />
-          <DatoViaje
-            icono={<Ticket size={20} />}
-            etiqueta="Precio"
-            valor={`Bs. ${Number(viaje.precio || 0).toFixed(2)}`}
-          />
-          <DatoViaje
-            icono={<Armchair size={20} />}
-            etiqueta="Disponibilidad"
-            valor={`${viaje.asientosDisponibles} asientos`}
-            alerta={pocosAsientos}
-          />
+        <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 min-[375px]:gap-2.5 sm:grid-cols-3">
+          <DatoViaje icono={<CalendarDays size={18} />} etiqueta="Fecha" valor={formatearFechaViaje(viaje.fecha)} />
+          <DatoViaje icono={<Clock size={18} />} etiqueta="Hora" valor={viaje.horaSalida.substring(0, 5)} />
+          <div className="col-span-2 min-w-0 sm:col-span-1">
+            <DatoViaje
+              icono={<Armchair size={18} />}
+              etiqueta="Disponibilidad"
+              valor={`${viaje.asientosDisponibles} asientos`}
+              alerta={pocosAsientos}
+            />
+          </div>
         </div>
 
-        <p className="mt-4 flex min-w-0 items-start gap-2 break-words rounded-xl bg-slate-50 px-3 py-3 text-xs font-bold text-slate-500 sm:items-center sm:px-4">
-          <MapPin size={17} className="shrink-0 text-emerald-600" />
+        <p className="mt-3 flex min-w-0 items-start gap-2 break-words rounded-xl bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 sm:items-center">
+          <MapPin size={16} className="shrink-0 text-emerald-600" />
           {viaje.vehiculo.marca} {viaje.vehiculo.modelo} · {viaje.vehiculo.placa}
         </p>
 
         <Link
-          to="/pasajero/comprar-reservar"
-          className="mt-4 flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-3 py-3 text-center text-sm font-black text-white shadow-lg shadow-emerald-700/15 transition hover:from-emerald-800 hover:to-emerald-700 sm:mt-auto sm:rounded-2xl sm:px-5 sm:py-4 sm:text-base"
+          to={destinoCompra}
+          state={seleccionCompra}
+          className="mt-3 flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-3 py-3 text-center text-sm font-black text-white shadow-lg shadow-emerald-700/15 transition hover:from-emerald-800 hover:to-emerald-700 sm:min-h-14 sm:text-base"
         >
-          Ver salidas y comprar
+          <Ticket size={18} />
+          {esFlota ? "Comprar ahora" : "Ir a comprar"}
           <ArrowRight size={18} />
         </Link>
       </div>

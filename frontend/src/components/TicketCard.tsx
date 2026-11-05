@@ -175,6 +175,8 @@ function TicketCard({
     respuesta.viaje ??
     ventaPrincipal?.viaje ??
     reservaPrincipal?.viaje ??
+    ticketPrincipal?.viaje ??
+    ticketPrincipal?.reserva?.viaje ??
     {};
 
   const ruta =
@@ -182,6 +184,63 @@ function TicketCard({
 
   const vehiculo =
     viaje?.vehiculo ?? {};
+
+  /*
+   * DATOS DEL CONDUCTOR
+   * Primero se usa el chofer asignado al viaje.
+   * Solo si no existe se muestra el chofer habitual.
+   * También acepta datos incorporados al ticket al aprobar el pago.
+   * No se modifica el código QR ni su validación.
+   */
+  const choferAsignado =
+    viaje?.chofer ??
+    ticketPrincipal?.chofer ??
+    respuesta?.chofer ??
+    null;
+
+  const choferHabitual =
+    vehiculo?.choferHabitual ??
+    null;
+
+  const chofer =
+    choferAsignado?.nombre || choferAsignado?.apellido
+      ? choferAsignado
+      : choferHabitual?.nombre || choferHabitual?.apellido
+        ? choferHabitual
+        : null;
+
+  const nombreChofer = chofer
+    ? [chofer.nombre, chofer.apellido]
+        .filter((parte) => Boolean(parte))
+        .join(" ")
+        .trim()
+    : "";
+
+  const codigoChofer =
+    chofer?.codigoChofer ??
+    chofer?.codigo ??
+    null;
+
+  const esChoferHabitual =
+    Boolean(chofer) &&
+    (chofer === choferHabitual ||
+      (chofer === respuesta?.chofer &&
+        respuesta?.choferEsHabitual === true));
+
+  const tipoVehiculo =
+    vehiculo?.tipo ??
+    respuesta?.tipoVehiculo ??
+    "";
+
+  const placaVehiculo =
+    vehiculo?.placa ??
+    respuesta?.placaVehiculo ??
+    "";
+
+  const numeroFlota =
+    vehiculo?.numeroFlota ??
+    respuesta?.numeroFlota ??
+    null;
 
   const asientos =
     respuesta.asientos ??
@@ -605,9 +664,7 @@ function TicketCard({
                         />
                       }
                       titulo="Placa"
-                      valor={
-                        vehiculo?.placa
-                      }
+                      valor={placaVehiculo}
                     />
 
                     <Dato
@@ -621,6 +678,46 @@ function TicketCard({
                         vehiculo?.capacidad
                           ? `${vehiculo.capacidad} pasajeros`
                           : "No registrada"
+                      }
+                    />
+
+                    {/* CHOFER ASIGNADO AL VIAJE */}
+                    <Dato
+                      icono={<CircleUserRound size={27} />}
+                      titulo={
+                        esChoferHabitual
+                          ? "Chofer habitual"
+                          : "Chofer del viaje"
+                      }
+                      valor={nombreChofer || "Por confirmar"}
+                    />
+
+                    <Dato
+                      icono={<ReceiptText size={27} />}
+                      titulo="Código del chofer"
+                      valor={
+                        codigoChofer !== null &&
+                        codigoChofer !== undefined &&
+                        String(codigoChofer).trim()
+                          ? codigoChofer
+                          : "No registrado"
+                      }
+                    />
+
+                    <Dato
+                      icono={<BusFront size={27} />}
+                      titulo="Tipo / N.º de flota"
+                      valor={
+                        [
+                          tipoVehiculo,
+                          numeroFlota !== null &&
+                          numeroFlota !== undefined &&
+                          String(numeroFlota).trim()
+                            ? `N.º ${numeroFlota}`
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "No registrado"
                       }
                     />
                   </div>

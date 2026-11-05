@@ -57,6 +57,13 @@ export interface Vehiculo {
   tipo: TipoVehiculo;
   capacidad: number;
   estado: boolean;
+  choferHabitual?: {
+    id: string;
+    nombre: string;
+    apellido: string;
+    ci?: string | null;
+    telefono?: string | null;
+  } | null;
   fechaRegistro?: string;
   fechaActualizacion?: string | null;
 }
@@ -68,6 +75,7 @@ export interface CrearVehiculoPayload {
   modelo: string;
   tipo: TipoVehiculo;
   estado?: boolean;
+  choferId?: string | null;
 }
 
 export interface ActualizarVehiculoPayload {
@@ -77,6 +85,7 @@ export interface ActualizarVehiculoPayload {
   modelo?: string;
   tipo?: TipoVehiculo;
   estado?: boolean;
+  choferId?: string | null;
 }
 
 /* =========================================================
@@ -139,6 +148,14 @@ interface VehiculoBackend {
     | string;
 
   estado?: boolean;
+
+  choferHabitual?: {
+    id?: string;
+    nombre?: string;
+    apellido?: string;
+    ci?: string | null;
+    telefono?: string | null;
+  } | null;
 
   fechaRegistro?: string;
   fecha_registro?: string;
@@ -372,6 +389,15 @@ function normalizarVehiculo(
 
     estado:
       item.estado !== false,
+
+    choferHabitual:
+      item.choferHabitual?.nombre
+        ? {
+            id: String(item.choferHabitual.id || ""),
+            nombre: String(item.choferHabitual.nombre),
+            apellido: String(item.choferHabitual.apellido || ""),
+          }
+        : null,
 
     fechaRegistro:
       item.fechaRegistro ??
@@ -780,6 +806,11 @@ export async function crearVehiculo(
       estado:
         payload.estado ??
         true,
+
+      // UUID del chofer, si fue seleccionado.
+      ...(payload.choferId !== undefined
+        ? { choferId: payload.choferId }
+        : {}),
     };
 
   const response =

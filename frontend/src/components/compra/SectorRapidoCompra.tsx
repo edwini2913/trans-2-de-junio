@@ -11,6 +11,8 @@ import {
   Route,
   TriangleAlert,
   Users,
+  UserRound,
+  IdCard,
 } from "lucide-react";
 
 import {
@@ -102,6 +104,73 @@ const formatearHora = (
   }
 
   return hora.substring(0, 5);
+};
+
+/**
+ * Este componente pertenece EXCLUSIVAMENTE al sector Noah/Hiace.
+ * El filtrado del servidor también debe respetar el tipo de vehículo.
+ */
+const esNoahOHiace = (tipo?: string | null) => {
+  const normalizado = String(tipo ?? "")
+    .trim()
+    .toUpperCase();
+  return normalizado === "NOAH" || normalizado === "HIACE";
+};
+
+type DatosChofer = {
+  nombre?: string | null;
+  apellido?: string | null;
+  nombreCompleto?: string | null;
+  nombre_completo?: string | null;
+  codigo?: string | number | null;
+  codigoChofer?: string | number | null;
+  codigo_chofer?: string | number | null;
+};
+
+type TurnoConChofer = TurnoSalidaRapida & {
+  chofer?: DatosChofer | null;
+  conductor?: DatosChofer | null;
+  codigoChofer?: string | number | null;
+  codigo_chofer?: string | number | null;
+  vehiculo: TurnoSalidaRapida["vehiculo"] & {
+    chofer?: DatosChofer | null;
+    conductor?: DatosChofer | null;
+  };
+  viaje: TurnoSalidaRapida["viaje"] & {
+    chofer?: DatosChofer | null;
+    conductor?: DatosChofer | null;
+  };
+};
+
+const obtenerChofer = (turno: TurnoSalidaRapida) => {
+  const datos = turno as TurnoConChofer;
+  const chofer =
+    datos.chofer ??
+    datos.conductor ??
+    datos.vehiculo?.chofer ??
+    datos.vehiculo?.conductor ??
+    datos.viaje?.chofer ??
+    datos.viaje?.conductor;
+
+  const nombre =
+    chofer?.nombreCompleto?.trim() ||
+    chofer?.nombre_completo?.trim() ||
+    [chofer?.nombre, chofer?.apellido]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  const codigo =
+    chofer?.codigoChofer ??
+    chofer?.codigo_chofer ??
+    chofer?.codigo ??
+    datos.codigoChofer ??
+    datos.codigo_chofer;
+
+  return {
+    nombre: nombre || "Chofer no asignado",
+    codigo: codigo == null || codigo === "" ? "No registrado" : String(codigo),
+    asignado: Boolean(nombre),
+  };
 };
 
 export default function SectorRapidoCompra({
@@ -259,7 +328,7 @@ export default function SectorRapidoCompra({
 
   /**
    * Se muestran solamente los vehículos
-   * que todavía no salieron.
+   * que todavía no salieron, exclusivamente NOAH o HIACE.
    */
   const vehiculosDisponibles =
     useMemo(
@@ -268,6 +337,7 @@ export default function SectorRapidoCompra({
           .filter(
             (turno) =>
               turno.activo &&
+              esNoahOHiace(turno.vehiculo?.tipo) &&
               [
                 "VENDIENDO",
                 "SIGUIENTE",
@@ -288,7 +358,8 @@ export default function SectorRapidoCompra({
       turno.estado ===
         "COMPLETO" ||
       turno.ocupacion.disponibles <=
-        0
+        0 ||
+      !esNoahOHiace(turno.vehiculo?.tipo)
     ) {
       return;
     }
@@ -503,9 +574,9 @@ export default function SectorRapidoCompra({
           </h3>
 
           <p className="mt-2 max-w-lg text-sm leading-6 text-slate-500">
-            La secretaria todavía no habilitó
-            vehículos Noah o Hiace para esta
-            ruta y fecha.
+            No hay vehículos Noah o Hiace habilitados
+            para esta ruta y fecha. Las flotas
+            se muestran únicamente en su sector.
           </p>
         </div>
       </section>
@@ -666,12 +737,14 @@ export default function SectorRapidoCompra({
       </header>
 
       <div className="p-5 sm:p-7">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {vehiculosDisponibles.map(
             (turno) => {
               const seleccionado =
                 turnoSeleccionadoId ===
                 turno.id;
+
+              const chofer = obtenerChofer(turno);
 
               const estado =
                 obtenerEtiquetaEstado(
@@ -687,7 +760,7 @@ export default function SectorRapidoCompra({
               return (
                 <article
                   key={turno.id}
-                  className={`relative overflow-hidden rounded-3xl border-2 p-5 transition ${
+                  className={`relative min-w-0 overflow-hidden rounded-3xl border-2 p-4 transition sm:p-5 ${
                     seleccionado
                       ? "border-emerald-600 bg-emerald-50 shadow-lg shadow-emerald-700/10"
                       : completo
@@ -730,6 +803,25 @@ export default function SectorRapidoCompra({
                         {turno.vehiculo.placa}
                       </strong>
                     </p>
+                  </div>
+
+                  <div className="mt-4 min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-emerald-800">
+                      <UserRound size={16} className="shrink-0" />
+                      Datos del chofer
+                    </div>
+                    <p className="mt-2 break-words text-sm font-bold text-slate-900">
+                      {chofer.nombre}
+                    </p>
+                    <p className="mt-1 flex flex-wrap items-center gap-1.5 break-all text-xs text-slate-600">
+                      <IdCard size={15} className="shrink-0" />
+                      Código: <strong>{chofer.codigo}</strong>
+                    </p>
+                    {!chofer.asignado && (
+                      <p className="mt-2 text-xs text-amber-700">
+                        Administración debe asignar el chofer a esta salida.
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-5 rounded-2xl bg-slate-50 p-3">

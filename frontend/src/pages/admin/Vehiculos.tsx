@@ -6,6 +6,9 @@ import {
   Plus,
   RefreshCw,
   Save,
+  UserRound,
+  Phone,
+  IdCard,
   Trash2,
   X,
 } from "lucide-react";
@@ -35,6 +38,37 @@ import type {
   Vehiculo,
 } from "../../services/catalogos.service";
 
+import api from "../../services/api";
+
+type ChoferBasico = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  ci?: string | null;
+  telefono?: string | null;
+  rol?: string;
+  estado?: boolean;
+};
+
+type VehiculoConChofer = Vehiculo & {
+  choferHabitual?: ChoferBasico | null;
+};
+
+function leerListaUsuarios(respuesta: unknown): ChoferBasico[] {
+  if (Array.isArray(respuesta)) return respuesta as ChoferBasico[];
+  if (respuesta && typeof respuesta === "object") {
+    const datos = respuesta as Record<string, unknown>;
+    for (const clave of ["usuarios", "data", "items"]) {
+      if (Array.isArray(datos[clave])) return datos[clave] as ChoferBasico[];
+    }
+  }
+  return [];
+}
+
+function nombreChofer(chofer?: ChoferBasico | null): string {
+  return [chofer?.nombre, chofer?.apellido].filter(Boolean).join(" ").trim() || "Sin chofer asignado";
+}
+
 interface FormularioVehiculo {
   numeroFlota: string;
   placa: string;
@@ -42,6 +76,7 @@ interface FormularioVehiculo {
   modelo: string;
   tipo: TipoVehiculo;
   estado: boolean;
+  choferId: string;
 }
 
 const FORMULARIO_INICIAL:
@@ -52,6 +87,7 @@ const FORMULARIO_INICIAL:
     modelo: "",
     tipo: "NOAH",
     estado: true,
+    choferId: "",
   };
 
 const obtenerError = (
@@ -71,7 +107,10 @@ export default function Vehiculos() {
   const [
     vehiculos,
     setVehiculos,
-  ] = useState<Vehiculo[]>([]);
+  ] = useState<VehiculoConChofer[]>([]);
+
+  const [choferes, setChoferes] = useState<ChoferBasico[]>([]);
+  const [errorChoferes, setErrorChoferes] = useState("");
 
   const [
     formulario,
@@ -146,6 +185,27 @@ export default function Vehiculos() {
     void cargarVehiculos();
   }, [cargarVehiculos]);
 
+  const cargarChoferes = useCallback(async () => {
+    try {
+      const respuesta = await api.get<unknown>("/users");
+      const usuarios = leerListaUsuarios(respuesta.data);
+      setChoferes(usuarios.filter((usuario) => usuario.rol === "CHOFER" && usuario.estado !== false));
+      setErrorChoferes("");
+    } catch {
+      setChoferes([]);
+      setErrorChoferes("No se pudo cargar la lista de choferes. Comprueba el acceso a /users.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void cargarChoferes();
+  }, [cargarChoferes]);
+
+  const choferSeleccionado = useMemo(() =>
+    choferes.find((chofer) => chofer.id === formulario.choferId) ?? null,
+    [choferes, formulario.choferId],
+  );
+
   const cantidades =
     useMemo(
       () => ({
@@ -204,7 +264,7 @@ export default function Vehiculos() {
   };
 
   const editarVehiculo = (
-    vehiculo: Vehiculo,
+    vehiculo: VehiculoConChofer,
   ) => {
     setVehiculoEditandoId(
       vehiculo.id,
@@ -229,6 +289,7 @@ export default function Vehiculos() {
 
       estado:
         vehiculo.estado,
+      choferId: vehiculo.choferHabitual?.id ?? "",
     });
 
     setMensaje("");
@@ -262,9 +323,7 @@ export default function Vehiculos() {
         setMensaje("");
 
         if (vehiculoEditandoId) {
-          await actualizarVehiculo(
-            vehiculoEditandoId,
-            {
+          const datosActualizacion = {
               numeroFlota:
                 formulario
                   .numeroFlota ||
@@ -284,14 +343,15 @@ export default function Vehiculos() {
 
               estado:
                 formulario.estado,
-            },
-          );
+              choferId: formulario.choferId || null,
+          };
+          await actualizarVehiculo(vehiculoEditandoId, datosActualizacion);
 
           setMensaje(
             "Vehículo actualizado correctamente.",
           );
         } else {
-          await crearVehiculo({
+          const datosCreacion = {
             numeroFlota:
               formulario
                 .numeroFlota ||
@@ -311,7 +371,9 @@ export default function Vehiculos() {
 
             estado:
               formulario.estado,
-          });
+            choferId: formulario.choferId || undefined,
+          };
+          await crearVehiculo(datosCreacion);
 
           setMensaje(
             `${formulario.tipo} registrado correctamente con ${capacidad} asientos.`,
@@ -511,7 +573,7 @@ export default function Vehiculos() {
 
         <form
           onSubmit={guardarVehiculo}
-          className="grid gap-5 p-6 md:grid-cols-2 xl:grid-cols-3"
+          className="grid min-w-0 gap-4 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-3"
         >
           <Campo
             etiqueta="Placa"
@@ -604,6 +666,36 @@ export default function Vehiculos() {
             </div>
           </div>
 
+          <div className="min-w-0 md:col-span-2 xl:col-span-3">
+            <label htmlFor="choferId" className="mb-2 flex items-center gap-2 text-sm font-black text-slate-700">
+              <UserRound size={18} className="text-emerald-700" /> Chofer habitual (opcional)
+            </label>
+            <select
+              id="choferId"
+              value={formulario.choferId}
+              onChange={(evento) => cambiarCampo("choferId", evento.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500"
+            >
+              <option value="">Sin chofer habitual</option>
+              {formulario.choferId && !choferes.some((c) => c.id === formulario.choferId) && (
+                <option value={formulario.choferId}>Chofer asignado (no disponible en el listado)</option>
+              )}
+              {choferes.map((chofer) => (
+                <option key={chofer.id} value={chofer.id}>
+                  {nombreChofer(chofer)}{chofer.ci ? ` — CI ${chofer.ci}` : ""}
+                </option>
+              ))}
+            </select>
+            {errorChoferes && <p className="mt-2 text-xs font-semibold text-amber-700">{errorChoferes}</p>}
+            {choferSeleccionado && (
+              <div className="mt-3 grid gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm sm:grid-cols-2">
+                <p className="flex items-center gap-2 font-black text-emerald-800 sm:col-span-2"><UserRound size={17} /> {nombreChofer(choferSeleccionado)}</p>
+                <p className="flex items-center gap-2 text-slate-700"><IdCard size={16} /> CI: {choferSeleccionado.ci || "No registrado"}</p>
+                <p className="flex items-center gap-2 text-slate-700"><Phone size={16} /> Teléfono: {choferSeleccionado.telefono || "No registrado"}</p>
+              </div>
+            )}
+          </div>
+
           <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
             <input
               type="checkbox"
@@ -625,7 +717,7 @@ export default function Vehiculos() {
             </span>
           </label>
 
-          <div className="flex gap-3 md:col-span-2 xl:col-span-3">
+          <div className="flex flex-col gap-3 sm:flex-row md:col-span-2 xl:col-span-3">
             <button
               type="submit"
               disabled={guardando}
@@ -682,12 +774,12 @@ export default function Vehiculos() {
             No existen vehículos registrados.
           </div>
         ) : (
-          <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 p-3 sm:p-6 md:grid-cols-2 xl:grid-cols-3">
             {vehiculos.map(
               (vehiculo) => (
                 <article
                   key={vehiculo.id}
-                  className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
+                  className="min-w-0 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white">
@@ -730,6 +822,13 @@ export default function Vehiculos() {
                     </p>
                   )}
 
+                  <div className="mt-4 rounded-2xl border border-emerald-100 bg-white p-3">
+                    <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-emerald-700"><UserRound size={16} /> Chofer habitual</p>
+                    <p className="mt-2 break-words text-sm font-black text-slate-800">{nombreChofer(vehiculo.choferHabitual)}</p>
+                    {vehiculo.choferHabitual?.ci && <p className="mt-1 text-xs text-slate-600">CI: {vehiculo.choferHabitual.ci}</p>}
+                    {vehiculo.choferHabitual?.telefono && <p className="mt-1 text-xs text-slate-600">Teléfono: {vehiculo.choferHabitual.telefono}</p>}
+                  </div>
+
                   <div className="mt-5 grid grid-cols-3 gap-2">
                     <button
                       type="button"
@@ -738,6 +837,7 @@ export default function Vehiculos() {
                           vehiculo,
                         )
                       }
+                      aria-label={`Editar vehículo ${vehiculo.placa}`}
                       className="flex items-center justify-center rounded-xl bg-sky-100 p-3 text-sky-700"
                     >
                       <Edit3 size={18} />
@@ -772,6 +872,7 @@ export default function Vehiculos() {
                           vehiculo,
                         )
                       }
+                      aria-label={`Eliminar vehículo ${vehiculo.placa}`}
                       className="flex items-center justify-center rounded-xl bg-red-100 p-3 text-red-700"
                     >
                       {procesandoId ===

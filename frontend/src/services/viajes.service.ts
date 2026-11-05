@@ -1,3 +1,9 @@
+/**
+ * Servicio de viajes — Trans-2 de Junio.
+ * Sector por defecto: FLOTA (compatibilidad con llamadas existentes).
+ * Para el sector rápido, llamar con sector = "NOAH_HIACE".
+ * El frontend debe pasar explícitamente el sector elegido por el pasajero.
+ */
 const API_URL =
   import.meta.env.VITE_API_URL ||
   "http://localhost:3000";
@@ -14,6 +20,17 @@ export interface Ruta {
   estado: boolean;
 }
 
+/** Sector seleccionado en la pantalla de compra. */
+export type SectorViaje = "FLOTA" | "NOAH_HIACE";
+
+export interface ChoferResumen {
+  id: string;
+  nombre: string;
+  apellido: string;
+  /** Código público, solamente si el backend lo proporciona. */
+  codigo?: string | null;
+}
+
 export interface Vehiculo {
   id: string;
   placa: string;
@@ -22,6 +39,8 @@ export interface Vehiculo {
   tipo: string;
   capacidad: number;
   estado: boolean;
+  numeroFlota?: string | null;
+  choferHabitual?: ChoferResumen | null;
 }
 
 export interface Viaje {
@@ -33,6 +52,7 @@ export interface Viaje {
   estado: string;
   ruta: Ruta;
   vehiculo: Vehiculo;
+  chofer?: ChoferResumen | null;
 }
 
 /* =========================================================
@@ -46,6 +66,7 @@ export interface CrearViajePayload {
   horaSalida: string;
   precio: number;
   estado?: string;
+  choferId?: string | null;
 }
 
 /* =========================================================
@@ -64,6 +85,9 @@ export interface VehiculoDisponible {
   asientosDisponibles: number;
   estadoViaje?: string;
   estadoVehiculo?: boolean;
+  numeroFlota?: string | null;
+  chofer?: ChoferResumen | null;
+  choferHabitual?: ChoferResumen | null;
 }
 
 export interface HorarioDisponible {
@@ -100,6 +124,7 @@ type ViajeBackend = {
   asientos_disponibles?: number | string;
 
   estado?: string;
+  chofer?: ChoferResumen | null;
 
   ruta?: {
     id?: string;
@@ -118,6 +143,9 @@ type ViajeBackend = {
     marca?: string;
     modelo?: string;
     tipo?: string;
+    numeroFlota?: string | null;
+    numero_flota?: string | null;
+    choferHabitual?: ChoferResumen | null;
 
     capacidad?: number | string;
 
@@ -239,6 +267,24 @@ function normalizarFecha(
   return fecha.trim().substring(0, 10);
 }
 
+/** Evita mostrar vehículos de otro sector incluso con respuestas antiguas. */
+function perteneceAlSector(tipo: unknown, sector: SectorViaje): boolean {
+  const normalizado = String(tipo ?? "").trim().toUpperCase();
+  return sector === "FLOTA"
+    ? normalizado === "FLOTA"
+    : normalizado === "NOAH" || normalizado === "HIACE";
+}
+
+function normalizarChofer(chofer: ChoferResumen | null | undefined): ChoferResumen | null {
+  if (!chofer?.id || !chofer.nombre || !chofer.apellido) return null;
+  return {
+    id: String(chofer.id),
+    nombre: String(chofer.nombre),
+    apellido: String(chofer.apellido),
+    codigo: chofer.codigo == null ? null : String(chofer.codigo),
+  };
+}
+
 function normalizarViaje(
   item: ViajeBackend,
 ): Viaje {
@@ -293,6 +339,8 @@ function normalizarViaje(
         item.ruta?.estado !== false,
     },
 
+    chofer: normalizarChofer(item.chofer),
+
     vehiculo: {
       id: String(
         item.vehiculo?.id || "",
@@ -320,6 +368,8 @@ function normalizarViaje(
 
       estado:
         item.vehiculo?.estado !== false,
+      numeroFlota: item.vehiculo?.numeroFlota ?? item.vehiculo?.numero_flota ?? null,
+      choferHabitual: normalizarChofer(item.vehiculo?.choferHabitual),
     },
   };
 }
@@ -467,6 +517,7 @@ export async function obtenerViajesPublicados(): Promise<
 export async function listarViajesDisponibles(
   rutaId: string,
   fecha: string,
+  sector: SectorViaje = "FLOTA",
 ): Promise<Viaje[]> {
   if (!rutaId || !fecha) {
     return [];
@@ -475,6 +526,7 @@ export async function listarViajesDisponibles(
   const params = new URLSearchParams({
     rutaId,
     fecha,
+    sector,
   });
 
   const response = await fetch(
@@ -494,16 +546,20 @@ export async function listarViajesDisponibles(
     return [];
   }
 
-  return data.map(normalizarViaje);
+  return data.map(normalizarViaje).filter((viaje) =>
+    perteneceAlSector(viaje.vehiculo.tipo, sector),
+  );
 }
 
 export async function obtenerViajesDisponibles(
   rutaId: string,
   fecha: string,
+  sector: SectorViaje = "FLOTA",
 ): Promise<Viaje[]> {
   return listarViajesDisponibles(
     rutaId,
     fecha,
+    sector,
   );
 }
 
@@ -511,6 +567,7 @@ export async function buscarViajes(
   origen: string,
   destino: string,
   fecha: string,
+  sector?: SectorViaje,
 ): Promise<Viaje[]> {
   const origenBuscado = origen
     .trim()
@@ -536,6 +593,7 @@ export async function buscarViajes(
         .trim()
         .toLocaleLowerCase("es-BO") === destinoBuscado &&
       normalizarFecha(viaje.fecha) === fechaBuscada &&
+      (!sector || perteneceAlSector(viaje.vehiculo.tipo, sector)) &&
       estado !== "CANCELADO" &&
       estado !== "CANCELADA" &&
       estado !== "FINALIZADO" &&
@@ -550,6 +608,7 @@ export async function buscarViajes(
 
 export async function obtenerFechasDisponibles(
   rutaId: string,
+  sector: SectorViaje = "FLOTA",
 ): Promise<FechaDisponible[]> {
   if (!rutaId) {
     return [];
@@ -579,7 +638,7 @@ export async function obtenerFechasDisponibles(
       viaje.estado || "",
     ).toUpperCase();
 
-    if (idRuta !== String(rutaId)) {
+    if (idRuta !== String(rutaId) || !perteneceAlSector(viaje.vehiculo?.tipo, sector)) {
       continue;
     }
 
@@ -627,11 +686,13 @@ export async function obtenerFechasDisponibles(
 export async function obtenerOpcionesDeViaje(
   rutaId: string,
   fecha: string,
+  sector: SectorViaje = "FLOTA",
 ): Promise<HorarioDisponible[]> {
   const viajes =
     await listarViajesDisponibles(
       rutaId,
       fecha,
+      sector,
     );
 
   const horariosMap = new Map<
@@ -693,6 +754,9 @@ export async function obtenerOpcionesDeViaje(
 
         estadoVehiculo:
           viaje.vehiculo.estado,
+        numeroFlota: viaje.vehiculo.numeroFlota ?? null,
+        chofer: viaje.chofer ?? null,
+        choferHabitual: viaje.vehiculo.choferHabitual ?? null,
       };
 
     const vehiculosActuales =

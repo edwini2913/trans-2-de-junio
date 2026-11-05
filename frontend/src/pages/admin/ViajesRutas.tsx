@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -29,6 +30,7 @@ import {
   Route as RouteIcon,
   Send,
   Ticket,
+  UserRound,
   Users,
   WalletCards,
   X,
@@ -61,6 +63,16 @@ interface Mensaje {
   tipo: TipoMensaje;
   texto: string;
 }
+
+type VehiculoConChofer = Vehiculo & {
+  choferHabitual?: {
+    id: string;
+    nombre: string;
+    apellido: string;
+    ci?: string | null;
+    telefono?: string | null;
+  } | null;
+};
 
 const FORMULARIO_INICIAL: CrearViajePayload = {
   rutaId: "",
@@ -116,14 +128,42 @@ function formatearPrecio(
   ).format(precio);
 }
 
+function obtenerNombreChofer(
+  vehiculo?: VehiculoConChofer | null,
+): string {
+  const chofer = vehiculo?.choferHabitual;
+  const nombreCompleto = [
+    chofer?.nombre,
+    chofer?.apellido,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return nombreCompleto || "Chofer por confirmar";
+}
+
 export default function ViajesRutas() {
   const navigate = useNavigate();
+  const panelVehiculoRef = useRef<HTMLDivElement>(null);
+  const panelSalidaRef = useRef<HTMLDivElement>(null);
+  const panelPublicarRef = useRef<HTMLDivElement>(null);
+
+  function irAlPaso(paso: 2 | 3 | 4) {
+    if (typeof window === "undefined" || window.innerWidth >= 1024) return;
+    const destino = paso === 2 ? panelVehiculoRef.current
+      : paso === 3 ? panelSalidaRef.current
+      : panelPublicarRef.current;
+    window.requestAnimationFrame(() => {
+      destino?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   const [rutas, setRutas] =
     useState<Ruta[]>([]);
 
   const [vehiculos, setVehiculos] =
-    useState<Vehiculo[]>([]);
+    useState<VehiculoConChofer[]>([]);
 
   const [formulario, setFormulario] =
     useState<CrearViajePayload>(
@@ -288,6 +328,8 @@ export default function ViajesRutas() {
         [name]: value,
       }),
     );
+    if (name === "rutaId" && value) irAlPaso(2);
+    if (name === "vehiculoId" && value) irAlPaso(3);
   }
 
   function manejarCambioInput(
@@ -307,6 +349,9 @@ export default function ViajesRutas() {
             : value,
       }),
     );
+    if (name === "precio" && Number(value) > 0 && formulario.fecha && formulario.horaSalida) {
+      irAlPaso(4);
+    }
   }
 
   function validarFormulario():
@@ -391,6 +436,9 @@ export default function ViajesRutas() {
             vehiculoSeleccionado?.placa ??
             ""
           }`,
+          `Chofer: ${obtenerNombreChofer(
+            vehiculoSeleccionado,
+          )}`,
           `Asientos: ${
             vehiculoSeleccionado?.capacidad ??
             0
@@ -480,7 +528,7 @@ export default function ViajesRutas() {
 
   return (
     <main className="min-h-screen bg-[#f4fbf7] text-slate-900">
-      <header className="border-b border-emerald-100 bg-white px-4 py-4 shadow-sm md:px-8">
+      <header className="border-b border-emerald-100 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-4 md:px-8">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -536,8 +584,8 @@ export default function ViajesRutas() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-[1500px] px-4 py-7 md:px-8">
-        <div className="relative mb-7 overflow-hidden rounded-[30px] bg-gradient-to-r from-emerald-800 via-emerald-700 to-green-600 px-6 py-7 text-white shadow-xl shadow-emerald-900/15 sm:px-8">
+      <section className="mx-auto max-w-[1500px] px-3 py-5 sm:px-4 sm:py-7 md:px-8">
+        <div className="relative mb-5 overflow-hidden rounded-[26px] bg-gradient-to-r from-emerald-800 via-emerald-700 to-green-600 px-4 py-5 text-white shadow-xl shadow-emerald-900/15 sm:mb-7 sm:rounded-[30px] sm:px-8 sm:py-7">
           <div className="absolute -right-10 -top-16 h-52 w-52 rounded-full border-[35px] border-white/10" />
           <div className="absolute bottom-0 right-44 h-24 w-24 rounded-full bg-lime-300/10" />
 
@@ -547,7 +595,7 @@ export default function ViajesRutas() {
                 Centro de programación
               </p>
 
-              <h2 className="mt-2 text-3xl font-black sm:text-4xl">
+              <h2 className="mt-2 text-2xl font-black sm:text-4xl">
                 Programar nuevo viaje
               </h2>
 
@@ -623,7 +671,7 @@ export default function ViajesRutas() {
           </div>
         )}
                 <section className="mb-6 rounded-[28px] border border-emerald-100 bg-white p-5 shadow-lg shadow-emerald-900/5">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
             <IndicadorPaso
               numero={1}
               titulo="Ruta"
@@ -659,7 +707,7 @@ export default function ViajesRutas() {
         </section>
 
         <form onSubmit={manejarPublicar}>
-          <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr_0.95fr]">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2 2xl:grid-cols-[1fr_1fr_1fr_0.95fr]">
             <PanelPaso
               numero={1}
               titulo="Seleccionar ruta"
@@ -751,6 +799,7 @@ export default function ViajesRutas() {
               </div>
             </PanelPaso>
 
+            <div ref={panelVehiculoRef} className="min-w-0 scroll-mt-4">
             <PanelPaso
               numero={2}
               titulo="Asignar vehículo"
@@ -789,7 +838,7 @@ export default function ViajesRutas() {
                       {vehiculo.marca}{" "}
                       {vehiculo.modelo} —{" "}
                       {vehiculo.capacidad}{" "}
-                      asientos
+                      asientos — {obtenerNombreChofer(vehiculo)}
                     </option>
                   ),
                 )}
@@ -851,6 +900,36 @@ export default function ViajesRutas() {
                 />
 
                 <DatoResumen
+                  icono={<UserRound size={18} />}
+                  etiqueta="Chofer asignado"
+                  valor={obtenerNombreChofer(
+                    vehiculoSeleccionado,
+                  )}
+                />
+
+                {vehiculoSeleccionado?.choferHabitual?.ci && (
+                  <DatoResumen
+                    icono={<Ticket size={18} />}
+                    etiqueta="CI del chofer"
+                    valor={vehiculoSeleccionado.choferHabitual.ci}
+                  />
+                )}
+
+                {vehiculoSeleccionado?.choferHabitual?.telefono && (
+                  <DatoResumen
+                    icono={<UserRound size={18} />}
+                    etiqueta="Teléfono del chofer"
+                    valor={vehiculoSeleccionado.choferHabitual.telefono}
+                  />
+                )}
+
+                {vehiculoSeleccionado && !vehiculoSeleccionado.choferHabitual && (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
+                    Este vehículo no tiene un chofer asociado en los datos recibidos. Verifica el registro antes de publicar.
+                  </p>
+                )}
+
+                <DatoResumen
                   icono={<Users size={18} />}
                   etiqueta="Capacidad"
                   valor={
@@ -861,7 +940,9 @@ export default function ViajesRutas() {
                 />
               </div>
             </PanelPaso>
+            </div>
 
+            <div ref={panelSalidaRef} className="min-w-0 scroll-mt-4">
             <PanelPaso
               numero={3}
               titulo="Programar salida"
@@ -971,7 +1052,9 @@ export default function ViajesRutas() {
                 </p>
               </div>
             </PanelPaso>
+            </div>
 
+            <div ref={panelPublicarRef} className="min-w-0 scroll-mt-4">
             <PanelPaso
               numero={4}
               titulo="Revisar y publicar"
@@ -1002,6 +1085,13 @@ export default function ViajesRutas() {
                         ? `${vehiculoSeleccionado.placa} — ${vehiculoSeleccionado.marca} ${vehiculoSeleccionado.modelo}`
                         : "Sin seleccionar"
                     }
+                  />
+
+                  <ResumenFinal
+                    etiqueta="Chofer"
+                    valor={obtenerNombreChofer(
+                      vehiculoSeleccionado,
+                    )}
                   />
 
                   <ResumenFinal
@@ -1092,6 +1182,7 @@ export default function ViajesRutas() {
                 Limpiar formulario
               </button>
             </PanelPaso>
+            </div>
           </div>
         </form>
 
@@ -1135,7 +1226,7 @@ function CabeceraDato({
 }: CabeceraDatoProps) {
   return (
     <div
-      className={`min-w-[130px] rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm ${claseAdicional}`}
+      className={`min-w-0 rounded-2xl border border-white/20 bg-white/10 px-3 py-3 backdrop-blur-sm sm:min-w-[130px] sm:px-4 ${claseAdicional}`}
     >
       <div className="flex items-center gap-2 text-emerald-100">
         {icono}
@@ -1169,7 +1260,7 @@ function IndicadorPaso({
 }: IndicadorPasoProps) {
   return (
     <div
-      className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-4 transition ${
+      className={`relative flex min-w-0 items-center gap-2 overflow-hidden rounded-2xl border p-2.5 transition sm:gap-3 sm:p-4 ${
         activo
           ? "border-emerald-300 bg-emerald-50 shadow-sm"
           : completado
@@ -1208,7 +1299,7 @@ function IndicadorPaso({
           {titulo}
         </p>
 
-        <p className="mt-1 truncate text-xs text-slate-500">
+        <p className="mt-1 hidden truncate text-xs text-slate-500 sm:block">
           {descripcion}
         </p>
       </div>
@@ -1232,8 +1323,8 @@ function PanelPaso({
   children,
 }: PanelPasoProps) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-lg shadow-emerald-900/5">
-      <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-lime-50 px-5 py-5">
+    <section className="min-w-0 overflow-hidden rounded-[24px] border border-emerald-100 bg-white shadow-lg shadow-emerald-900/5 sm:rounded-[28px]">
+      <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-lime-50 px-4 py-4 sm:px-5 sm:py-5">
         <div className="flex items-center gap-3">
           <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md shadow-emerald-700/20">
             {icono}
@@ -1259,7 +1350,7 @@ function PanelPaso({
         </div>
       </div>
 
-      <div className="p-5">
+      <div className="p-4 sm:p-5">
         {children}
       </div>
     </section>
@@ -1288,7 +1379,7 @@ function DatoResumen({
           {etiqueta}
         </p>
 
-        <p className="mt-0.5 truncate text-sm font-black text-slate-800">
+        <p className="mt-0.5 break-words text-sm font-black leading-5 text-slate-800">
           {valor}
         </p>
       </div>
@@ -1311,7 +1402,7 @@ function ResumenFinal({
         {etiqueta}
       </p>
 
-      <p className="text-right text-sm font-black leading-5 text-slate-800">
+      <p className="min-w-0 break-words text-right text-sm font-black leading-5 text-slate-800">
         {valor}
       </p>
     </div>

@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -17,6 +18,7 @@ import {
 
 import {
   Link,
+  useLocation,
   useNavigate,
 } from "react-router-dom";
 
@@ -86,8 +88,68 @@ const PagoQR = lazy(
     ),
 );
 
+/**
+ * Selección recibida desde el Dashboard del pasajero.
+ * Se valida antes de usarla para evitar seleccionar viajes de otro sector.
+ */
+type SeleccionDashboard = {
+  sector: "FLOTA" | "RAPIDO";
+  rutaId: string;
+  fecha: string;
+  horaSalida: string;
+  viajeId: string;
+  vehiculoId: string;
+};
+
+function leerSeleccionDashboard(valor: unknown): SeleccionDashboard | null {
+  if (!valor || typeof valor !== "object") return null;
+  const dato = valor as Record<string, unknown>;
+  if (dato.sector !== "FLOTA" && dato.sector !== "RAPIDO") return null;
+
+  // Ruta y fecha bastan para ir directamente a las salidas.
+  if (typeof dato.rutaId !== "string" || !dato.rutaId.trim()) return null;
+  if (typeof dato.fecha !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dato.fecha)) return null;
+
+  return {
+    sector: dato.sector,
+    rutaId: dato.rutaId,
+    fecha: dato.fecha,
+    horaSalida: typeof dato.horaSalida === "string" ? dato.horaSalida : "",
+    viajeId: typeof dato.viajeId === "string" ? dato.viajeId : "",
+    vehiculoId: typeof dato.vehiculoId === "string" ? dato.vehiculoId : "",
+  };
+}
+
+/**
+ * Recupera la selección incluso si React Router pierde location.state.
+ * Ejemplo: ?sector=FLOTA&rutaId=...&fecha=2026-11-05&horaSalida=18:00
+ */
+function leerSeleccionDesdeURL(busqueda: string): SeleccionDashboard | null {
+  const params = new URLSearchParams(busqueda);
+  const datos = {
+    sector: params.get("sector"),
+    rutaId: params.get("rutaId"),
+    fecha: params.get("fecha"),
+    horaSalida: params.get("horaSalida"),
+    viajeId: params.get("viajeId"),
+    vehiculoId: params.get("vehiculoId"),
+  };
+  return leerSeleccionDashboard(datos);
+}
+
 function ComprarReservar() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Se lee una sola vez: el pago y el mapa de asientos no reinician la selección.
+  const seleccionInicialRef = useRef<SeleccionDashboard | null>(
+    leerSeleccionDashboard(location.state) ?? leerSeleccionDesdeURL(location.search),
+  );
+  const seleccionAplicadaRef = useRef(false);
+  const seleccionFlotaPendienteRef = useRef<SeleccionDashboard | null>(null);
+  // Se usa solamente para el desplazamiento inicial desde el Dashboard.
+  const irDirectoAHorariosRef = useRef(Boolean(seleccionInicialRef.current));
+
 
   const seccionResultadoPagoRef =
     useRef<HTMLDivElement | null>(null);
@@ -128,7 +190,7 @@ function ComprarReservar() {
     sectorTransporte,
     setSectorTransporte,
   ] = useState<SectorTransporteTipo>(
-    "FLOTA",
+    seleccionInicialRef.current?.sector ?? "FLOTA",
   );
 
   const {
@@ -136,6 +198,7 @@ function ComprarReservar() {
     pasajero,
 
     paso,
+    setPaso,
 
     modoOperacion,
     cambiarModoOperacion,
@@ -251,6 +314,27 @@ function ComprarReservar() {
     return () => window.clearTimeout(temporizador);
   }, [viaje, cargandoAsientos]);
 
+  // El sector Flotas solamente debe listar viajes de vehículos FLOTA.
+  // Se recalcula la cantidad de vehículos visible en cada horario.
+  const horariosFlotas = useMemo(
+    () =>
+      horarios
+        .map((horario) => {
+          const vehiculos = horario.vehiculos.filter(
+            (vehiculo) =>
+              vehiculo.tipo?.trim().toUpperCase() === "FLOTA",
+          );
+
+          return {
+            ...horario,
+            cantidadVehiculos: vehiculos.length,
+            vehiculos,
+          };
+        })
+        .filter((horario) => horario.vehiculos.length > 0),
+    [horarios],
+  );
+
   const seleccionarVehiculoYAvanzar = async (
     vehiculoDisponible: VehiculoDisponible,
     horaSalida: string,
@@ -264,6 +348,80 @@ function ComprarReservar() {
     }
   };
 
+  /**
+   * DASHBOARD -> COMPRAR / RESERVAR.
+   * Si ya se seleccionó una salida en Inicio, NO pedir de nuevo ruta
+   * ni fecha: se completan los campos y se abren los horarios del sector.
+   * No se seleccionan asientos ni se genera pago automáticamente.
+   */
+  useEffect(() => {
+    if (seleccionAplicadaRef.current) return;
+    seleccionAplicadaRef.current = true;
+    const seleccion = seleccionInicialRef.current;
+    if (!seleccion) return;
+
+    compraViaje.setRutaId(seleccion.rutaId);
+    compraViaje.setFecha(seleccion.fecha);
+    setSectorTransporte(seleccion.sector);
+    setPaso(2);
+
+    if (seleccion.sector === "FLOTA") {
+      seleccionFlotaPendienteRef.current = seleccion;
+      // Solicita las horas reales de esa ruta y fecha al backend.
+      void compraViaje.cargarSalidasAutomatico(
+        seleccion.rutaId,
+        seleccion.fecha,
+      );
+    }
+    // Para RAPIDO, SectorRapidoCompra consulta automáticamente
+    // los turnos cuando recibe rutaId y fecha.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Una vez que llegan los horarios de Flotas, se marca únicamente
+   * la hora publicada. El pasajero conserva la libertad de elegir
+   * el vehículo, asientos y modalidad de compra.
+   */
+  useEffect(() => {
+    const seleccion = seleccionFlotaPendienteRef.current;
+    if (!seleccion || cargandoViajes) return;
+
+    if (horariosFlotas.length > 0) {
+      // Un mismo horario puede tener varias flotas; mostrar todas.
+      const horario = horariosFlotas.find(
+        (item) => item.horaSalida.substring(0, 5) === seleccion.horaSalida.substring(0, 5),
+      );
+      seleccionFlotaPendienteRef.current = null;
+      if (horario && seleccion.horaSalida) {
+        seleccionarHorario(horario.horaSalida);
+      }
+    }
+    // Si una salida no está publicada, permanece el horario vacío;
+    // no se elige un vehículo diferente por error.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [horariosFlotas, cargandoViajes]);
+
+  /**
+   * Desplazamiento tras preparar el sector seleccionado.
+   * La ruta/fecha quedan arriba como datos editables, pero el
+   * pasajero ve directamente las salidas, sin desplazamiento largo.
+   */
+  useEffect(() => {
+    if (!irDirectoAHorariosRef.current) return;
+    const seleccion = seleccionInicialRef.current;
+    if (!seleccion || !rutaId || !fecha) return;
+    if (seleccion.sector === "FLOTA" && cargandoViajes) return;
+
+    const temporizador = window.setTimeout(() => {
+      if (!irDirectoAHorariosRef.current) return;
+      irDirectoAHorariosRef.current = false;
+      desplazarA(seccionHorariosRef.current);
+    }, seleccion.sector === "RAPIDO" ? 400 : 260);
+
+    return () => window.clearTimeout(temporizador);
+  }, [rutaId, fecha, sectorTransporte, cargandoViajes]);
+
   const cambiarSectorTransporte = (
     nuevoSector: SectorTransporteTipo,
   ) => {
@@ -275,6 +433,13 @@ function ComprarReservar() {
     }
 
     esperandoAsientosRef.current = false;
+    seleccionFlotaPendienteRef.current = null;
+    seleccionInicialRef.current = null;
+    irDirectoAHorariosRef.current = false;
+    // El cambio manual del sector elimina los parámetros anteriores.
+    if (location.search) {
+      navigate("/pasajero/comprar-reservar", { replace: true });
+    }
     limpiarSeleccionViaje();
     setSectorTransporte(nuevoSector);
     window.setTimeout(() => {
@@ -286,6 +451,12 @@ function ComprarReservar() {
     async (
       turno: TurnoSalidaRapida,
     ) => {
+      // Evitar seleccionar una flota desde Noah/Hiace.
+      const tipoTurno = String(turno.vehiculo.tipo).toUpperCase();
+      if (tipoTurno !== "NOAH" && tipoTurno !== "HIACE") {
+        return;
+      }
+
       const vehiculoDisponible:
         VehiculoDisponible = {
           viajeId:
@@ -322,6 +493,20 @@ function ComprarReservar() {
 
           estadoVehiculo:
             true,
+
+          numeroFlota: turno.vehiculo.numeroFlota ?? null,
+
+          // Priorizar el chofer asignado a esta salida.
+          chofer: turno.chofer
+            ? {
+                id: turno.chofer.id,
+                nombre: turno.chofer.nombre,
+                apellido: turno.chofer.apellido,
+                codigo: (turno.chofer as typeof turno.chofer & {
+                  codigo?: string | null;
+                }).codigo ?? null,
+              }
+            : null,
         };
 
       await seleccionarVehiculoYAvanzar(
@@ -534,6 +719,17 @@ function ComprarReservar() {
 
         {/* RUTA Y FECHA */}
 
+        {seleccionInicialRef.current && (
+          <div className="mt-5 flex min-w-0 items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs font-semibold text-emerald-900 sm:text-sm">
+            <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-emerald-700" />
+            <span>
+              Ya elegiste una salida desde Inicio. La ruta y la fecha se
+              completaron automáticamente; continúa con el horario y los
+              asientos disponibles. Puedes cambiarlas si deseas.
+            </span>
+          </div>
+        )}
+
         <div ref={seccionBusquedaRef} className="scroll-mt-32 sm:scroll-mt-40">
           <BusquedaViaje
           rutas={rutas}
@@ -548,6 +744,10 @@ function ComprarReservar() {
           bloqueado={bloqueado}
           onCambiarRuta={(nuevoId) => {
             esperandoAsientosRef.current = false;
+            seleccionInicialRef.current = null;
+            seleccionFlotaPendienteRef.current = null;
+            irDirectoAHorariosRef.current = false;
+            if (location.search) navigate("/pasajero/comprar-reservar", { replace: true });
             cambiarRuta(nuevoId);
             // Ruta y fecha comparten formulario: mantenerlo visible.
             window.setTimeout(() => {
@@ -556,6 +756,10 @@ function ComprarReservar() {
           }}
           onCambiarFecha={(nuevaFecha) => {
             esperandoAsientosRef.current = false;
+            seleccionInicialRef.current = null;
+            seleccionFlotaPendienteRef.current = null;
+            irDirectoAHorariosRef.current = false;
+            if (location.search) navigate("/pasajero/comprar-reservar", { replace: true });
             cambiarFecha(nuevaFecha);
             // Al definir la fecha, mostrar horarios/vehículos.
             window.setTimeout(() => {
@@ -576,7 +780,8 @@ function ComprarReservar() {
             }
           >
             <HorariosSalida
-              horarios={horarios}
+              sector="FLOTA"
+              horarios={horariosFlotas}
               horarioSeleccionado={
                 horarioSeleccionado
               }
@@ -589,21 +794,21 @@ function ComprarReservar() {
               }
               bloqueado={bloqueado}
               onSeleccionarHorario={(horario) => {
+                // HorariosSalida gestiona el desplazamiento a vehículos.
                 seleccionarHorario(horario);
-                // Vehículos se muestran dentro de HorariosSalida.
-                window.setTimeout(() => {
-                  desplazarA(seccionHorariosRef.current);
-                }, 160);
               }}
               onSeleccionarVehiculo={(
                 vehiculoDisponible,
                 horaSalida,
-              ) =>
+              ) => {
+                if (
+                  String(vehiculoDisponible.tipo).toUpperCase() !== "FLOTA"
+                ) return;
                 void seleccionarVehiculoYAvanzar(
                   vehiculoDisponible,
                   horaSalida,
-                )
-              }
+                );
+              }}
             />
           </Suspense>
         )}

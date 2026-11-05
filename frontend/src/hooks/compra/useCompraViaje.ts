@@ -19,6 +19,7 @@ import {
   obtenerOpcionesDeViaje,
   type HorarioDisponible,
   type VehiculoDisponible,
+  type ChoferResumen,
 } from "../../services/viajes.service";
 
 export type RutaCompra = {
@@ -34,6 +35,8 @@ export type VehiculoCompra = {
   placa?: string;
   capacidad?: number;
   tipo?: string;
+  numeroFlota?: string | null;
+  choferHabitual?: ChoferResumen | null;
 };
 
 export type ViajeCompra = {
@@ -44,6 +47,7 @@ export type ViajeCompra = {
   asientosDisponibles?: number;
   ruta?: RutaCompra;
   vehiculo?: VehiculoCompra;
+  chofer?: ChoferResumen | null;
 };
 
 export type AsientoCompra = {
@@ -137,6 +141,11 @@ function useCompraViaje({
   const operacionesAsientoRef =
     useRef<Set<string>>(new Set());
 
+  // Evita que respuestas antiguas de otra ruta/fecha
+  // reemplacen los horarios o los asientos actuales.
+  const solicitudHorariosRef = useRef(0);
+  const solicitudAsientosRef = useRef(0);
+
   useEffect(() => {
     asientosSeleccionadosRef.current =
       asientosSeleccionados;
@@ -185,6 +194,11 @@ function useCompraViaje({
 
   const limpiarSeleccionViaje =
     useCallback(() => {
+      solicitudHorariosRef.current += 1;
+      solicitudAsientosRef.current += 1;
+      setCargandoViajes(false);
+      setCargandoAsientos(false);
+      setHorarios([]);
       setHorarioSeleccionado("");
       setVehiculoSeleccionado(null);
       setViaje(null);
@@ -228,6 +242,8 @@ function useCompraViaje({
         fechaSeleccionada: string,
       ) => {
         limpiarSeleccionViaje();
+        const solicitudActual = ++solicitudHorariosRef.current;
+        setCargandoViajes(false);
         setHorarios([]);
         mostrarMensaje();
 
@@ -247,6 +263,7 @@ function useCompraViaje({
             await obtenerOpcionesDeViaje(
               rutaSeleccionada,
               fechaSeleccionada,
+              "FLOTA", // Los turnos Noah/Hiace usan SectorRapidoCompra.
             );
 
           const lista =
@@ -254,22 +271,46 @@ function useCompraViaje({
               respuesta,
             );
 
-          setHorarios(lista);
+          if (solicitudActual !== solicitudHorariosRef.current) {
+            return;
+          }
 
-          if (lista.length === 0) {
+          // Defensa adicional: nunca mezclar Noah/Hiace
+          // dentro del listado de horarios de flotas.
+          const soloFlotas = lista
+            .map((horario) => {
+              const vehiculos = horario.vehiculos.filter(
+                (vehiculo) =>
+                  String(vehiculo.tipo).trim().toUpperCase() === "FLOTA",
+              );
+              return {
+                ...horario,
+                vehiculos,
+                cantidadVehiculos: vehiculos.length,
+              };
+            })
+            .filter((horario) => horario.vehiculos.length > 0);
+
+          setHorarios(soloFlotas);
+
+          if (soloFlotas.length === 0) {
             mostrarMensaje(
               "No hay salidas disponibles para la ruta y fecha seleccionadas.",
             );
           }
         } catch (error: unknown) {
-          mostrarMensaje(
-            obtenerMensajeError(
-              error,
-              "No se pudieron cargar los horarios y vehículos disponibles.",
-            ),
-          );
+          if (solicitudActual === solicitudHorariosRef.current) {
+            mostrarMensaje(
+              obtenerMensajeError(
+                error,
+                "No se pudieron cargar los horarios y vehículos disponibles.",
+              ),
+            );
+          }
         } finally {
-          setCargandoViajes(false);
+          if (solicitudActual === solicitudHorariosRef.current) {
+            setCargandoViajes(false);
+          }
         }
       },
       [
@@ -364,6 +405,17 @@ function useCompraViaje({
           return;
         }
 
+        const tipo = String(vehiculoDisponible.tipo).trim().toUpperCase();
+        if (!["FLOTA", "NOAH", "HIACE"].includes(tipo)) {
+          mostrarMensaje("El tipo de vehículo seleccionado no es válido.");
+          return;
+        }
+
+        if (Number(vehiculoDisponible.asientosDisponibles) <= 0) {
+          mostrarMensaje("Este vehículo no tiene asientos disponibles.");
+          return;
+        }
+
         const rutaSeleccionada =
           rutas.find(
             (ruta) =>
@@ -407,7 +459,17 @@ function useCompraViaje({
 
               tipo:
                 vehiculoDisponible.tipo,
+
+              numeroFlota:
+                vehiculoDisponible.numeroFlota ?? null,
+
+              choferHabitual:
+                vehiculoDisponible.choferHabitual ?? null,
             },
+
+            // Chofer de salida prevalece sobre el habitual.
+            chofer: vehiculoDisponible.chofer ??
+              vehiculoDisponible.choferHabitual ?? null,
           };
 
         setHorarioSeleccionado(
@@ -425,6 +487,7 @@ function useCompraViaje({
         limpiarSeleccionAsientos();
         mostrarMensaje();
 
+        const solicitudActual = ++solicitudAsientosRef.current;
         setCargandoAsientos(true);
         onCambiarPaso?.(3);
 
@@ -439,6 +502,10 @@ function useCompraViaje({
               respuesta,
             );
 
+          if (solicitudActual !== solicitudAsientosRef.current) {
+            return;
+          }
+
           setAsientos(lista);
 
           if (lista.length === 0) {
@@ -447,14 +514,18 @@ function useCompraViaje({
             );
           }
         } catch (error: unknown) {
-          mostrarMensaje(
-            obtenerMensajeError(
-              error,
-              "No se pudieron cargar los asientos del vehículo.",
-            ),
-          );
+          if (solicitudActual === solicitudAsientosRef.current) {
+            mostrarMensaje(
+              obtenerMensajeError(
+                error,
+                "No se pudieron cargar los asientos del vehículo.",
+              ),
+            );
+          }
         } finally {
-          setCargandoAsientos(false);
+          if (solicitudActual === solicitudAsientosRef.current) {
+            setCargandoAsientos(false);
+          }
         }
       },
       [

@@ -48,10 +48,17 @@ export interface ChoferHabitualVehiculo {
   apellido: string;
   rol?: "CHOFER";
   estado?: boolean;
+  /** Código interno, cuando el backend lo proporciona. */
+  codigo?: string | number | null;
+  codigoChofer?: string | number | null;
+  codigo_chofer?: string | number | null;
+  nombreCompleto?: string;
+  nombre_completo?: string;
 }
 
 export interface VehiculoRapido {
   choferHabitual?: ChoferHabitualVehiculo | null;
+  chofer?: ChoferHabitualVehiculo | null;
   id: string;
   numeroFlota: string | null;
   placa: string;
@@ -81,7 +88,10 @@ export interface TurnoSalidaRapida {
   posicion: number;
   estado: EstadoTurnoVehiculo;
   activo: boolean;
-  chofer?: { id: string; nombre: string; apellido: string } | null;
+  chofer?: ChoferHabitualVehiculo | null;
+  conductor?: ChoferHabitualVehiculo | null;
+  codigoChofer?: string | number | null;
+  codigo_chofer?: string | number | null;
   fecha: string;
   fechaInicioVenta: string | null;
   fechaSalida: string | null;
@@ -100,12 +110,17 @@ export interface TurnoSalidaRapida {
     modelo: string;
     tipo: "NOAH" | "HIACE";
     capacidad: number;
+    chofer?: ChoferHabitualVehiculo | null;
+    choferHabitual?: ChoferHabitualVehiculo | null;
+    conductor?: ChoferHabitualVehiculo | null;
   };
 
   viaje: {
     id: string;
     horaSalida: string;
     precio: number;
+    chofer?: ChoferHabitualVehiculo | null;
+    conductor?: ChoferHabitualVehiculo | null;
   };
 
   ocupacion: {
@@ -417,6 +432,29 @@ function validarCoordenadas(
 }
 
 /* =========================================================
+   FILTRO ESTRICTO DEL SECTOR NOAH / HIACE
+
+   El backend es la fuente definitiva de la asignación a sectores.
+   Este filtro evita que un registro FLOTA aparezca en la interfaz
+   del sector rápido, incluso cuando una ruta se comparte.
+========================================================= */
+
+export const esVehiculoSectorRapido = (tipo: unknown): boolean =>
+  typeof tipo === "string" &&
+  (tipo.trim().toUpperCase() === "NOAH" ||
+    tipo.trim().toUpperCase() === "HIACE");
+
+export const filtrarTurnosSectorRapido = (
+  turnos: TurnoSalidaRapida[],
+): TurnoSalidaRapida[] =>
+  turnos.filter(
+    (turno) =>
+      turno != null &&
+      turno.vehiculo != null &&
+      esVehiculoSectorRapido(turno.vehiculo.tipo),
+  );
+
+/* =========================================================
    VEHÍCULOS RÁPIDOS
 ========================================================= */
 
@@ -427,7 +465,9 @@ export const obtenerVehiculosRapidos =
     );
 
     return Array.isArray(response.data)
-      ? response.data
+      ? response.data.filter(
+          (vehiculo) => esVehiculoSectorRapido(vehiculo?.tipo),
+        )
       : [];
   };
 
@@ -506,7 +546,7 @@ export const obtenerFilaSalida = async (
   );
 
   return Array.isArray(response.data)
-    ? response.data
+    ? filtrarTurnosSectorRapido(response.data)
     : [];
 };
 

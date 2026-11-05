@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   TicketCheck,
   WalletCards,
+  UserRound,
+  BusFront,
 } from "lucide-react";
 
 import {
@@ -42,6 +44,19 @@ export interface TicketPagoAprobado {
   total?: number;
   imagenQr?: string;
   datosOficiales?: unknown;
+
+  // Datos adicionales para mostrar al conductor, sin alterar el QR.
+  chofer?: {
+    id?: string;
+    nombre?: string;
+    apellido?: string;
+    codigo?: string | number | null;
+    codigoChofer?: string | number | null;
+  } | null;
+  choferEsHabitual?: boolean;
+  placaVehiculo?: string;
+  tipoVehiculo?: string;
+  numeroFlota?: string | null;
 }
 
 export interface PagoAprobadoProps {
@@ -123,6 +138,53 @@ function PagoAprobado({
         },
       },
     };
+
+  /*
+   * DATOS DEL CHOFER Y VEHÍCULO
+   * Solo lectura: no se toca la validación, el pago ni el QR.
+   * Se prioriza el chofer asignado al viaje sobre el habitual.
+   */
+  const oficial = comoRegistro(ticket.datosOficiales);
+  const reservaOficial = comoRegistro(oficial.reserva);
+  const viajeOficial = comoRegistro(
+    reservaOficial.viaje ?? oficial.viaje,
+  );
+  const vehiculoOficial = comoRegistro(viajeOficial.vehiculo);
+  const conductorAsignado = comoRegistro(
+    viajeOficial.chofer ?? oficial.chofer ?? ticket.chofer,
+  );
+  const conductorHabitual = comoRegistro(
+    vehiculoOficial.choferHabitual,
+  );
+  const conductor =
+    conductorAsignado.nombre || conductorAsignado.apellido
+      ? conductorAsignado
+      : conductorHabitual.nombre || conductorHabitual.apellido
+        ? conductorHabitual
+        : {};
+
+  const nombreChofer = [
+    textoDato(conductor.nombre),
+    textoDato(conductor.apellido),
+  ].filter(Boolean).join(" ");
+
+  const codigoChofer = textoDato(
+    conductor.codigoChofer ?? conductor.codigo,
+  );
+
+  const conductorEsHabitual =
+    conductor === conductorHabitual ||
+    (conductor === conductorAsignado && ticket.choferEsHabitual === true);
+
+  const tipoVehiculo = textoDato(
+    vehiculoOficial.tipo ?? ticket.tipoVehiculo,
+  );
+  const placaVehiculo = textoDato(
+    vehiculoOficial.placa ?? ticket.placaVehiculo,
+  );
+  const numeroFlota = textoDato(
+    vehiculoOficial.numeroFlota ?? ticket.numeroFlota,
+  );
 
   /*
    * Código seguro para utilizar
@@ -397,6 +459,50 @@ function PagoAprobado({
           </div>
         </div>
 
+        {/* DATOS DEL CHOFER: NO MODIFICA EL TICKETCARD ORIGINAL */}
+        <div className="mt-3 grid min-w-0 gap-3 rounded-2xl border border-emerald-100 bg-white p-3 sm:grid-cols-2 sm:p-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+              <UserRound size={21} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                Chofer del viaje
+              </p>
+              <p className="mt-1 break-words text-sm font-black text-slate-900">
+                {nombreChofer || "Por confirmar"}
+              </p>
+              {nombreChofer && conductorEsHabitual && (
+                <p className="mt-1 text-xs text-slate-500">Chofer habitual</p>
+              )}
+              {codigoChofer && (
+                <p className="mt-1 break-words text-xs text-slate-600">
+                  Código: {codigoChofer}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+              <BusFront size={21} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                Vehículo asignado
+              </p>
+              <p className="mt-1 break-words text-sm font-black text-slate-900">
+                {tipoVehiculo || "Por confirmar"}
+                {numeroFlota ? ` · N.º ${numeroFlota}` : ""}
+              </p>
+              {placaVehiculo && (
+                <p className="mt-1 break-words text-xs text-slate-600">
+                  Placa: {placaVehiculo}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* ACCIONES */}
 
         <div className="mt-4 grid min-w-0 grid-cols-2 gap-2 sm:mt-6 sm:gap-3 lg:grid-cols-3">
@@ -544,6 +650,20 @@ function BotonAccion({
       </span>
     </button>
   );
+}
+
+/** Devuelve una vista segura de los datos recibidos del backend. */
+function comoRegistro(valor: unknown): Record<string, unknown> {
+  if (valor && typeof valor === "object" && !Array.isArray(valor)) {
+    return valor as Record<string, unknown>;
+  }
+  return {};
+}
+
+function textoDato(valor: unknown): string {
+  return typeof valor === "string" || typeof valor === "number"
+    ? String(valor).trim()
+    : "";
 }
 
 export default PagoAprobado;
